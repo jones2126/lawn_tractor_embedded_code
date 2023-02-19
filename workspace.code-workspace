@@ -3,6 +3,10 @@
 		{
 			"name": "radio_control",
 			"path": "radio_control"
+		},
+		{
+			"name": "tractor_control",
+			"path": "tractor_control"
 		}
 	]
 }

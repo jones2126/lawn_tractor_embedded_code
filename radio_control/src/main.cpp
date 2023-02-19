@@ -9,6 +9,8 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 
 To do's: 
 - Add a byte to detect and send the "mode" to be used on the tractor (i.e. whether to read cmd_vel statements)
+- Change the mapping of the steering values.  Currently it is -45 to 45; I believe it needs to match the range that
+cmd_vel will use (e.g. -.75 - +.75).
 
 */
 

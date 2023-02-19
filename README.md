@@ -1,4 +1,6 @@
 # lawn_tractor_embedded_code
-radio_control 
-tractor_control
-not syncing
+
+
+Two programs:
+1. radio_control 
+2. tractor_control

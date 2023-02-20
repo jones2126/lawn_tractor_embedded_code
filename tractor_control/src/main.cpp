@@ -13,6 +13,8 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 */
 
 // include the library
+#include "ros.h"
+#include "geometry_msgs/Twist.h"
 #include <RadioLib.h>
 #include <ESP32Servo.h>
 #include <Adafruit_SSD1306.h>
@@ -160,6 +162,17 @@ int transmissionNeutralPos = 73;
 int transmissionServoValue = transmissionNeutralPos;  // neutral position
 int tranmissioPotValue = 0; // incoming throttle setting
 
+/////////// ROS Variables /////////////////////
+float angular_vel_z = 0;
+float linear_vel_x  = 0;  
+unsigned long prev_cmd_vel_time = 0;
+
+void getCMD_VEL(const geometry_msgs::Twist& cmd_msg) {
+    linear_vel_x  = cmd_msg.linear.x;  
+    angular_vel_z = cmd_msg.angular.z;
+    prev_cmd_vel_time = millis();
+}
+
 void setup() {
   pinMode(steer_angle_pin,INPUT);
   pinMode(mode_pin,INPUT);  // used for testing - read Kp from potentiometer
@@ -173,7 +186,9 @@ void setup() {
   startSerial();
   startOLED();
   InitLoRa();
-
+  ros::NodeHandle nh;
+  //ros::Subscriber<geometry_msgs::Twist> cmd_msg("cmd_vel", getCMD_VEL);
+  ros::Subscriber<geometry_msgs::Twist> cmd_msg("/cmd_vel", &getCMD_VEL);  
 }
 void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
@@ -350,6 +365,9 @@ void steerVehicle(){
     ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);    
     //kd = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 2000);
     kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000); 
+    // if mode=manual use RadioControlData.steering_val
+    // if mode=cmd_vel setPoint = cmd_vel angular.z
+    // if mode = pause setPoint = 0 (or straight)
     setPoint = RadioControlData.steering_val;
     //Serial.print("e: "); Serial.println(error); 
     steering_actual_pot=analogRead(steer_angle_pin); 
@@ -384,6 +402,20 @@ void steerVehicle(){
     prev_time_steer = millis();
 }  // end of steerVehicle
 void throttleVehicle(){
+/*
+  If mode_sw = cmd_vel then
+    try
+      subscribe to actual_speed topic
+      setpoint will be a target speed in m/s
+      Use PID to adjust transmission servo
+    exception - ROS not available switch to manual mode
+
+  If mode_sw = manual
+    transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, 50, 110); 
+  If mode_sw = pause
+    transmissionServoValue = transmissionNeutralPos     
+*/
+
     //tranmissioPotValue = analogRead(potpin);  // change to   get the data from the LoRo packet
     //transmissionServoValue = map(potval, 0, max_pot_value, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
     transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, 50, 110);    // - 60=reverse; 73=neutral; 92=first

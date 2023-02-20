@@ -48,11 +48,16 @@ float RSSI = 0;
 SX1276 radio = new Module(18, 26, 14, 33);  // Module(CS, DI0, RST, ??); - Module(18, 26, 14, 33);
 
 ///////////////////////Inputs/outputs///////////////////////
-//Sensor Pin definitions
+//TTGO Board Pin definitions
 #define POT_X 36
 #define POT_Y 37
 #define voltage_pin 34
+#define MODE_PIN 39
 int led = 2;
+
+// estop 
+byte buttonState;
+#define ESTOP_PIN 25  
 
 //OLED definitions
 #define OLED_SDA 4
@@ -90,10 +95,6 @@ char *throttle_val_ROS;
 int switch_mode;
 int voltage_val = 0;
 
-// estop 
-byte buttonState;
-#define ESTOP_PIN 25  
-
 // used classifying results
 #define arraySize 10 // size of array a
 int SteeeringPts[arraySize] = {0, 130, 298, 451, 1233, 2351, 3468, 4094, 4096, 4097}; 
@@ -110,18 +111,18 @@ int ThrottleValues[arraySize] = {-2, -1, 0, 1, 2, 3, 3, 3, 3, 99};
 ///////////////////////////////////////////////////////////
 
 /////////////////////Loop Timing variables///////////////////////
+// 10 Hz, 1/10th of a second=100; 20Hz = 50; 50Hz=20; 3 seconds=3000; 3Hz=333; 2Hz=500
 const long readingInterval = 500;
 const long weatherInterval = 5000;
 const long transmitInterval = 333;
 const long OLEDInterval = 500;
-const long infoInterval = 3000;  // 100 = 1/10 of a second (i.e. 10 Hz) 3000 = 3 seconds
-const long radioSignalInterval = 200;  // 100 = 1/10 of a second (i.e. 10 Hz) 3000 = 3 seconds
+const long infoInterval = 3000;  
+const long radioSignalInterval = 200;  
 
-//const long steerInterval = 50;  // 100 10 HZ, 50 20Hz, 20 = 50 Hz
+//const long steerInterval = 50;  // 100 10 HZ,       50 20Hz, 20 = 50 Hz
 //const long safetyInterval = 1000; 
 //unsigned long prev_safety_time = 0; 
 //unsigned long prev_time_steer = 0;
-
 
 unsigned long prev_time_reading = 0;
 unsigned long prev_time_weather = 0;
@@ -131,9 +132,6 @@ unsigned long prev_time_printinfo = 0;
 unsigned long prev_time_radio_signal = 0;
 ////////////////////////////////////////////////////////////////
 
-
-
-
 /////////////////////// data structures ///////////////////////
 struct RadioControlStruct{
   float         steering_val;
@@ -142,6 +140,7 @@ struct RadioControlStruct{
   float         humidity;
   float         TempF;
   byte          estop;
+  byte          control_mode;
   unsigned long counter;
   }RadioControlData;
 uint8_t RadioControlData_message_len = sizeof(RadioControlData);
@@ -161,8 +160,6 @@ uint8_t tx_TractorData_buf[sizeof(TractorData)] = {0};
 TwoWire I2Cone = TwoWire(1);
 Adafruit_BME280 bme;
 CRGB leds[NUM_LEDS];
-
-
 
 // int sensor_value = -99;
 void setup(){
@@ -260,6 +257,7 @@ void getControlReadings(){
     //RadioControlData.steering_val = steering_val_ROS; 
     voltage_val = analogRead(voltage_pin);
     RadioControlData.estop = digitalRead(ESTOP_PIN);  //LOW = 0 side; HIGH = middle
+    RadioControlData.control_mode = digitalRead(MODE_PIN);  //used to signal whether to use cmd_vel or not
 }
 void getWeatherReadings(){
     //light_val = analogRead(light_sensor);  // currently do not have one installed

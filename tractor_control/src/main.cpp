@@ -444,8 +444,8 @@ void displayOLED(){
   display.setCursor(0,row_3);  display.print("Steering:"); display.setCursor(58,row_3); display.print(abs(steer_effort));
   display.setCursor(0,row_4);  display.print("P"); display.setCursor(10,row_4); display.print(kp,2);
   display.setCursor(50,row_4);  display.print("I"); display.setCursor(60,row_4); display.print(ki,5);
-  display.setCursor(0,row_5);  display.print("D"); display.setCursor(10,row_5); display.print(kd,2);  
-  display.setCursor(0,row_6);  display.print("Mode SW:");  display.setCursor(58,57); display.print(RadioControlData.control_mode);
+  //display.setCursor(0,row_5);  display.print("D"); display.setCursor(10,row_5); display.print(kd,2);  
+  display.setCursor(0,row_5);  display.print("Mode SW:");  display.setCursor(58,57); display.print(RadioControlData.control_mode);
   //display.setCursor(0,57);  display.print("T cntr:");  display.setCursor(58,57); display.print(TractorData.counter);   
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);

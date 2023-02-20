@@ -53,6 +53,7 @@ struct RadioControlStruct{
   float         humidity;
   float         TempF;
   byte          estop;
+  byte          control_mode;
   unsigned long counter;
   }RadioControlData;
 
@@ -145,6 +146,7 @@ const int row_2 = 27;
 const int row_3 = 37;
 const int row_4 = 47;
 const int row_5 = 57;
+const int row_6 = 67;
 unsigned long prev_time_OLED = 0;
 const long OLEDInterval = 500;
 ///////////////////////////////////////////////////////////
@@ -434,7 +436,7 @@ void displayOLED(){
   display.clearDisplay();
   display.setCursor(0,0);
   display.setTextSize(1);
-  display.print("Control Readings");
+  display.print("Tractor Control v1");
   //display.setCursor(0,17);  display.print("RC Volt:");  display.setCursor(58,17); display.print(voltage_val);  
   //display.setCursor(0,27);  display.print("RSSI:");     display.setCursor(58,27); display.print(radio.getRSSI());
   display.setCursor(0,row_1);  display.print("RSSI:");     display.setCursor(58,row_1); display.print(radio.getRSSI());
@@ -443,7 +445,7 @@ void displayOLED(){
   display.setCursor(0,row_4);  display.print("P"); display.setCursor(10,row_4); display.print(kp,2);
   display.setCursor(50,row_4);  display.print("I"); display.setCursor(60,row_4); display.print(ki,5);
   display.setCursor(0,row_5);  display.print("D"); display.setCursor(10,row_5); display.print(kd,2);  
-  //display.setCursor(0,57);  display.print("Mode SW:");  display.setCursor(58,57); display.print(switch_mode);
+  display.setCursor(0,row_6);  display.print("Mode SW:");  display.setCursor(58,57); display.print(RadioControlData.control_mode);
   //display.setCursor(0,57);  display.print("T cntr:");  display.setCursor(58,57); display.print(TractorData.counter);   
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);

@@ -66,6 +66,14 @@ byte buttonState;
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
+#define row_1 0
+#define row_2 9
+#define row_3 18
+#define row_4 27
+#define row_5 36
+#define row_6 45
+#define row_7 54
+
 
 //BME280 definition
 #define BME280_SDA 13
@@ -178,7 +186,7 @@ void loop(){
   if ((currentMillis - prev_time_weather)     >= weatherInterval)   {getWeatherReadings();}
   if ((currentMillis - prev_time_xmit)        >= transmitInterval)  {sendOutgoingMsg();}
   if ((currentMillis - prev_time_OLED)        >= OLEDInterval)      {displayOLED();}
- // if ((currentMillis - prev_time_printinfo)  >= infoInterval)     {print_Info_messages();}     
+  if ((currentMillis - prev_time_printinfo)   >= infoInterval)      {print_Info_messages();}     
 }
 void startSerial(){
   Serial.begin(115200);
@@ -344,16 +352,17 @@ void startOLED(){
 }
 void displayOLED(){
   display.clearDisplay();
-  display.setCursor(0,0);
+  //display.setCursor(0,0);
   display.setTextSize(1);
-  display.print("Radio Control v1");
-  display.setCursor(0,17);  display.print("RC Volt:");  display.setCursor(58,17); display.print(voltage_val);  
-  //display.setCursor(0,27);  display.print("RSSI:");     display.setCursor(58,27); display.print(radio.getRSSI());
-  display.setCursor(0,27);  display.print("RSSI:");     display.setCursor(58,27); display.print(RSSI);
-  display.setCursor(0,37);  display.print("Throttle:"); display.setCursor(58,37); display.print(RadioControlData.throttle_val);
-  display.setCursor(0,47);  display.print("Steering:"); display.setCursor(58,47); display.print(RadioControlData.steering_val);
-  //display.setCursor(0,57);  display.print("Mode SW:");  display.setCursor(58,57); display.print(switch_mode);
-  display.setCursor(0,57);  display.print("T cntr:");  display.setCursor(58,57); display.print(TractorData.counter);   
+  display.setCursor(0,row_1);  display.print("Radio Control v1");
+  display.setCursor(0,row_2);  display.print("RC Volt:");  display.setCursor(58,row_2); display.print(voltage_val);  
+  //display.setCursor(0,27);   display.print("RSSI:");     display.setCursor(58,27);    display.print(radio.getRSSI());
+  display.setCursor(0,row_3);  display.print("RSSI:");     display.setCursor(58,row_3); display.print(RSSI);
+  display.setCursor(0,row_4);  display.print("Throttle:"); display.setCursor(58,row_4); display.print(RadioControlData.throttle_val);
+  display.setCursor(0,row_5);  display.print("Steering:"); display.setCursor(58,row_5); display.print(RadioControlData.steering_val);
+  //display.setCursor(0,57);   display.print("Mode SW:");  display.setCursor(58,57);    display.print(switch_mode);
+  display.setCursor(0,row_6);  display.print("T cntr:");   display.setCursor(58,row_6); display.print(TractorData.counter);
+  display.setCursor(0,row_7);  display.print("Mode:");     display.setCursor(58,row_5); display.print(RadioControlData.control_mode);
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
 }
@@ -407,16 +416,16 @@ int classifyRange(int a[], int x){
 }
 void print_Info_messages(){
     printf("\n");  
-    printf("\n");   
-    Serial.print(F("last tractor data: "));
+    //printf("\n");   
+    //Serial.print(F("last tractor data: "));
     //Serial.print(" speed: "); Serial.print(TractorData.speed);
     //Serial.print(", heading: "); Serial.print(TractorData.heading);
     //Serial.print(", voltage: "); Serial.print(TractorData.voltage);
     Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter); 
-    Serial.print(F(" RC data sent: "));
+    //Serial.print(F(" RC data sent: "));
     //Serial.print(F("Datarate: "));  Serial.print(radio.getDataRate());  Serial.print(F(" bps "));
     //Serial.print(", RSSI: "); Serial.print(RSSI);  //radio.getRSSI()
-    Serial.print(", RSSI: "); Serial.print(radio.getRSSI()); 
+    //Serial.print(", RSSI: "); Serial.print(radio.getRSSI()); 
     //Serial.print(F(", RSSI color: "));  Serial.print(ledcolors[RSSI_test]);    
     //Serial.print(F(", throttle: "));  Serial.print(RadioControlData.throttle_val);
     //Serial.print(F(", POT X: "));  Serial.print(throttle_val);
@@ -429,6 +438,8 @@ void print_Info_messages(){
     //Serial.print("Approx. Altitude (m) = "); Serial.print(altitude);
     //Serial.print(", Humidity = "); Serial.print(humidity); Serial.println(" % ");
     Serial.print(", RadioControlData.counter: "); Serial.print(RadioControlData.counter);
+    Serial.print(", mode: "); Serial.print(digitalRead(MODE_PIN));
+    //RadioControlData.control_mode = digitalRead(MODE_PIN);  //used to signal whether to use cmd_vel or not    
     //printf("\n");   
     printf("\n");
     printf("\n");     

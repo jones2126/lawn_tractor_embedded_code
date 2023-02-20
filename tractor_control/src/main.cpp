@@ -141,12 +141,13 @@ float test_duration = 0;
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
-const int row_1 = 17;
-const int row_2 = 27;
-const int row_3 = 37;
-const int row_4 = 47;
-const int row_5 = 57;
-const int row_6 = 67;
+#define row_1 0
+#define row_2 9
+#define row_3 18
+#define row_4 27
+#define row_5 36
+#define row_6 45
+#define row_7 54
 unsigned long prev_time_OLED = 0;
 const long OLEDInterval = 500;
 ///////////////////////////////////////////////////////////
@@ -434,19 +435,17 @@ void startOLED(){
 }
 void displayOLED(){
   display.clearDisplay();
-  display.setCursor(0,0);
   display.setTextSize(1);
-  display.print("Tractor Control v1");
-  //display.setCursor(0,17);  display.print("RC Volt:");  display.setCursor(58,17); display.print(voltage_val);  
-  //display.setCursor(0,27);  display.print("RSSI:");     display.setCursor(58,27); display.print(radio.getRSSI());
-  display.setCursor(0,row_1);  display.print("RSSI:");     display.setCursor(58,row_1); display.print(radio.getRSSI());
-  display.setCursor(0,row_2);  display.print("Throttle:"); display.setCursor(58,row_2); display.print(transmissionServoValue);
-  display.setCursor(0,row_3);  display.print("Steering:"); display.setCursor(58,row_3); display.print(abs(steer_effort));
-  display.setCursor(0,row_4);  display.print("P"); display.setCursor(10,row_4); display.print(kp,2);
-  display.setCursor(50,row_4);  display.print("I"); display.setCursor(60,row_4); display.print(ki,5);
-  //display.setCursor(0,row_5);  display.print("D"); display.setCursor(10,row_5); display.print(kd,2);  
-  display.setCursor(0,row_5);  display.print("Mode SW:");  display.setCursor(58,57); display.print(RadioControlData.control_mode);
-  //display.setCursor(0,57);  display.print("T cntr:");  display.setCursor(58,57); display.print(TractorData.counter);   
+  display.setCursor(0,row_1);    display.print("Tractor Control v1");
+  //display.setCursor(0,row_2);  display.print("RC Volt:");   display.setCursor(58,row_2);  display.print(voltage_val);  
+  display.setCursor(0,row_2);    display.print("RSSI:");      display.setCursor(58,row_2);  display.print(radio.getRSSI());
+  display.setCursor(0,row_3);    display.print("Throttle:");  display.setCursor(58,row_3);  display.print(transmissionServoValue);
+  display.setCursor(0,row_4);    display.print("Steering:");  display.setCursor(58,row_4);  display.print(abs(steer_effort));
+  display.setCursor(0,row_5);    display.print("P");          display.setCursor(10,row_5);  display.print(kp,2);
+  display.setCursor(50,row_5);   display.print("I");          display.setCursor(60,row_5);  display.print(ki,5);
+  display.setCursor(0,row_6);    display.print("D");          display.setCursor(10,row_6);  display.print(kd,2);  
+  display.setCursor(0,row_7);    display.print("Mode SW:");   display.setCursor(58,row_7);  display.print(RadioControlData.control_mode);
+  //display.setCursor(0,57);     display.print("T cntr:");    display.setCursor(58,57);     display.print(TractorData.counter);   
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
 }

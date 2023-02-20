@@ -103,6 +103,9 @@ char *throttle_val_ROS;
 int switch_mode;
 int voltage_val = 0;
 
+// mode switch
+int mode_sw_analog = 0;
+
 // used classifying results
 #define arraySize 10 // size of array a
 int SteeeringPts[arraySize] = {0, 130, 298, 451, 1233, 2351, 3468, 4094, 4096, 4097}; 
@@ -116,7 +119,11 @@ int ThrottlePts[arraySize] = {0, 780, 1490, 2480, 3275, 4000, 4001, 4002, 4096, 
 //char ThrottleValues[arraySize][3] = {"-2", "-1", "0", "1", "2", "3", "3", "3", "3", "99"};
 int ThrottleValues[arraySize] = {-2, -1, 0, 1, 2, 3, 3, 3, 3, 99};
 
-///////////////////////////////////////////////////////////
+// Three analog read values for mode switch, 0 (top), ~1890 (bottom), and 4095 (middle)
+int Mode_SW_Pts[arraySize] = {0, 1500, 1750, 1950, 2000, 4000, 4001, 4002, 4096, 4097}; 
+int Mode_SW_Values[arraySize] = {2, 3, 0, 4, 5, 6, 7, 1, 8, 9};
+
+/////////////////////////////////////////////////////////////////
 
 /////////////////////Loop Timing variables///////////////////////
 // 10 Hz, 1/10th of a second=100; 20Hz = 50; 50Hz=20; 3 seconds=3000; 3Hz=333; 2Hz=500
@@ -173,6 +180,7 @@ CRGB leds[NUM_LEDS];
 void setup(){
   pinMode(led, OUTPUT);
   pinMode(ESTOP_PIN, INPUT_PULLUP);
+  pinMode(MODE_PIN, INPUT);
   startSerial();
   initLEDs();
   InitLoRa();
@@ -186,7 +194,7 @@ void loop(){
   if ((currentMillis - prev_time_weather)     >= weatherInterval)   {getWeatherReadings();}
   if ((currentMillis - prev_time_xmit)        >= transmitInterval)  {sendOutgoingMsg();}
   if ((currentMillis - prev_time_OLED)        >= OLEDInterval)      {displayOLED();}
-  if ((currentMillis - prev_time_printinfo)   >= infoInterval)      {print_Info_messages();}     
+//  if ((currentMillis - prev_time_printinfo)   >= infoInterval)      {print_Info_messages();}     // for debug 
 }
 void startSerial(){
   Serial.begin(115200);
@@ -265,7 +273,10 @@ void getControlReadings(){
     //RadioControlData.steering_val = steering_val_ROS; 
     voltage_val = analogRead(voltage_pin);
     RadioControlData.estop = digitalRead(ESTOP_PIN);  //LOW = 0 side; HIGH = middle
-    RadioControlData.control_mode = digitalRead(MODE_PIN);  //used to signal whether to use cmd_vel or not
+    mode_sw_analog = analogRead(MODE_PIN);
+    return_test = classifyRange(Mode_SW_Pts, mode_sw_analog);
+    RadioControlData.control_mode = Mode_SW_Values[return_test];
+    //RadioControlData.control_mode = digitalRead(MODE_PIN);  //used to signal whether to use cmd_vel or not
 }
 void getWeatherReadings(){
     //light_val = analogRead(light_sensor);  // currently do not have one installed
@@ -362,7 +373,7 @@ void displayOLED(){
   display.setCursor(0,row_5);  display.print("Steering:"); display.setCursor(58,row_5); display.print(RadioControlData.steering_val);
   //display.setCursor(0,57);   display.print("Mode SW:");  display.setCursor(58,57);    display.print(switch_mode);
   display.setCursor(0,row_6);  display.print("T cntr:");   display.setCursor(58,row_6); display.print(TractorData.counter);
-  display.setCursor(0,row_7);  display.print("Mode:");     display.setCursor(58,row_5); display.print(RadioControlData.control_mode);
+  display.setCursor(0,row_7);  display.print("Mode:");     display.setCursor(58,row_7); display.print(RadioControlData.control_mode);
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
 }
@@ -438,7 +449,9 @@ void print_Info_messages(){
     //Serial.print("Approx. Altitude (m) = "); Serial.print(altitude);
     //Serial.print(", Humidity = "); Serial.print(humidity); Serial.println(" % ");
     Serial.print(", RadioControlData.counter: "); Serial.print(RadioControlData.counter);
-    Serial.print(", mode: "); Serial.print(digitalRead(MODE_PIN));
+    Serial.print(", mode analog: "); Serial.print(mode_sw_analog);  // RadioControlData.control_mode
+    Serial.print(", mode class: "); Serial.print(RadioControlData.control_mode);
+
     //RadioControlData.control_mode = digitalRead(MODE_PIN);  //used to signal whether to use cmd_vel or not    
     //printf("\n");   
     printf("\n");
@@ -452,12 +465,3 @@ void print_Info_messages(){
     //Serial.println();
     prev_time_printinfo = millis();  // reset the timer
 }
-
-/*
-check tractor.counter
-- if the counter is not in line with the expected result then you are not receiving good data
-- assume the tractor is sending data a 1 packet per second (i.e. 1:1000 milliseconds)
-- ( current_tractor_counter - last_tractor_counter)/millis = age of counter
-- (1003 - 999) / (current_millis - last_received_millis)
-- 4 / 10 (seconds)
-*/

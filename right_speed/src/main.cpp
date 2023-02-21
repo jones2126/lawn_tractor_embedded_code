@@ -16,6 +16,8 @@ I have the following scenarios.  The meters_travelled calculation will have to b
 This version of the program is installed on the right side of the vehicle.  The calculation for meters_travelled would have to be 
 swapped if installed on the right side.
 
+There is an example program at /home/tractor/catkin_ws/src/jetson_nano_bot/localization_data_pub/src/ekf_odom_pub.cpp
+that shows how to prepare an odom statement, which needs to be added to mine.
 */
 
 #include <ros.h>

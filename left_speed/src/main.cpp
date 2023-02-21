@@ -1,7 +1,5 @@
 /*
-left_speed_sensor_v4.cpp
-
-Reads AS5048B using a Teensy 3.2 and I2C communiction
+left_speed_sensor running on a teensy 3.2 reading an AS5048B with I2C communiction
 
 This reads the sensor, calculates speed and distance travelled and publishes the values using ROS to output the data.
 

@@ -11,6 +11,10 @@
 		{
 			"name": "left_speed",
 			"path": "left_speed"
+		},
+		{
+			"name": "right_speed",
+			"path": "right_speed"
 		}
 	]
 }

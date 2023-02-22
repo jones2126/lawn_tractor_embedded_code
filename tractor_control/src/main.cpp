@@ -503,7 +503,7 @@ void startOLED(){
 void displayOLED(){
   display.clearDisplay();
   display.setTextSize(1);
-  display.setCursor(0,row_1);    display.print("Tractor Control v1");
+  display.setCursor(0,row_1);    display.print("Tractor Cntrl 02-21-23");
   //display.setCursor(0,row_2);  display.print("RC Volt:");   display.setCursor(58,row_2);  display.print(voltage_val);  
   display.setCursor(0,row_2);    display.print("RSSI:");      display.setCursor(58,row_2);  display.print(radio.getRSSI());
   display.setCursor(0,row_3);    display.print("Throttle:");  display.setCursor(58,row_3);  display.print(transmissionServoValue);

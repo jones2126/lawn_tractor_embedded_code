@@ -93,16 +93,16 @@ unsigned long prev_time_throttle = 0;
 //pot values left: straight:1880; right:
 float safety_margin_pot = 400; // reduce this once I complete field testing
 float left_limit_pot = 3245 - safety_margin_pot;  // the actual extreme limit is 3245
-float left_limit_angle = -45; // this is a guess - change based on field testing
+float left_limit_angle = -0.73; // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 float right_limit_pot = 470 + safety_margin_pot;  // the actual extreme limit is 470
-float right_limit_angle = 45;  // this is a guess - change based on field testing
+float right_limit_angle = 0.73;  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float steering_target_angle = 0;
 float steering_target_pot = 0;
 float steering_actual_angle = 0;
 float steering_actual_pot = 0;
 float steer_effort_float = 0;
 int steer_effort = 0;
-float tolerance = 0.4;  // need to adjust this based on angles
+float tolerance = 0.007;  // 1% of 0.73
 const int motor_power_limit = 150;
 /////////////////////////////////////////////////////////////
 
@@ -159,6 +159,9 @@ Servo transmissionServo;  // create servo object to control a servo
 //Servo CytronServo;  // create servo object to control a servo  
 //myservo.attach(transmissionSignalPin);  // attaches the servo on pin 9 to the servo object
 int transmissionNeutralPos = 73;
+//full_reverse and full_forward
+int transmissionFullReversePos = 50;
+int transmissionFullForwardPos = 110;
 int transmissionServoValue = transmissionNeutralPos;  // neutral position
 int tranmissioPotValue = 0; // incoming throttle setting
 
@@ -187,7 +190,6 @@ void setup() {
   startOLED();
   InitLoRa();
   ros::NodeHandle nh;
-  //ros::Subscriber<geometry_msgs::Twist> cmd_msg("cmd_vel", getCMD_VEL);
   ros::Subscriber<geometry_msgs::Twist> cmd_msg("/cmd_vel", &getCMD_VEL);  
 }
 void transmissionServoSetup(){
@@ -207,7 +209,7 @@ void loop() {
     if ((currentMillis - prev_time_reading)    >= readingInterval)   {getTractorData();}
     if ((currentMillis - prev_time_xmit)       >= transmitInterval)  {sendOutgoingMsg();}
     if ((currentMillis - prev_time_printinfo)  >= infoInterval)      {print_Info_messages();} 
-    if ((currentMillis - prev_time_OLED)        >= OLEDInterval)      {displayOLED();}          
+    if ((currentMillis - prev_time_OLED)       >= OLEDInterval)      {displayOLED();}          
 }
 void startSerial(){
   Serial.begin(115200);
@@ -355,6 +357,10 @@ void print_Info_messages(){
     printf("\n"); 
 }
 void steerVehicle(){
+/*
+Although I have tested the PID I still have the external potentiometers connected in order
+to continue tuning the PID.
+*/
     //kp=5.0; // previously 6.15
     //ki = 0.00001;
     ki = 0.00;    
@@ -365,12 +371,32 @@ void steerVehicle(){
     ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);    
     //kd = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 2000);
     kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000); 
-    // if mode=manual use RadioControlData.steering_val
-    // if mode=cmd_vel setPoint = cmd_vel angular.z
-    // if mode = pause setPoint = 0 (or straight)
-    setPoint = RadioControlData.steering_val;
+
+/*
+    Physical  source for    pot value    mode
+    position  control                    value
+
+    top       cmd_vel          0          2
+    middle    manual        4095          1
+    bottom    set to 0     ~1890          0
+              for safety
+*/    
+
+    // setPoint is used in ComputePID to calculate error to target
+    if (RadioControlData.control_mode == 2) {
+        setPoint = angular_vel_z;  // value range -.73 to +.73
+    }
+    else if (RadioControlData.control_mode == 1) {
+        setPoint = RadioControlData.steering_val;   // value range needs to match cmd_vel range
+    }
+    else if (RadioControlData.control_mode == 0) {
+        setPoint = 0;
+    }
+    else {
+        Serial.print("Fatal error - unknown mode sw value: "); Serial.print(RadioControlData.control_mode);  
+    }
     //Serial.print("e: "); Serial.println(error); 
-    steering_actual_pot=analogRead(steer_angle_pin); 
+    steering_actual_pot = analogRead(steer_angle_pin); 
     steering_actual_angle = mapfloat(steering_actual_pot, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
     steer_effort_float = computePID(steering_actual_angle);
     steer_effort = steer_effort_float;
@@ -403,25 +429,34 @@ void steerVehicle(){
 }  // end of steerVehicle
 void throttleVehicle(){
 /*
-  If mode_sw = cmd_vel then
-    try
-      subscribe to actual_speed topic
-      setpoint will be a target speed in m/s
-      Use PID to adjust transmission servo
-    exception - ROS not available switch to manual mode
+    Physical  source for    pot value    mode
+    position  control                    value
 
-  If mode_sw = manual
-    transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, 50, 110); 
-  If mode_sw = pause
-    transmissionServoValue = transmissionNeutralPos     
-*/
+    top       cmd_vel          0          2
+    middle    manual        4095          1
+    bottom    set to 0     ~1890          0
+              for safety
+*/  
 
-    //tranmissioPotValue = analogRead(potpin);  // change to   get the data from the LoRo packet
-    //transmissionServoValue = map(potval, 0, max_pot_value, 0, 180);     // scale it to use it with the servo (value between 0 and 180)
-    transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, 50, 110);    // - 60=reverse; 73=neutral; 92=first
-    digitalWrite(transmissionPowerPin, LOW);   // turn power on to transmission servo
-    //transmissionServoValue = transmissionNeutralPos;  // neutral
-    transmissionServo.write(transmissionServoValue);                  // sets the servo position according to the scaled value
+  if (RadioControlData.control_mode == 2 && linear_vel_x < 0) {
+      transmissionServoValue = map(linear_vel_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos); 
+      }
+  else if(RadioControlData.control_mode == 2 && linear_vel_x >= 0){
+      transmissionServoValue = map(linear_vel_x, 0, 1.8, transmissionNeutralPos, transmissionFullForwardPos ); 
+      } 
+  else if (RadioControlData.control_mode == 1){
+      transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);    // - 60=reverse; 73=neutral; 92=first
+      }
+  else if (RadioControlData.control_mode == 0) {
+      transmissionServoValue = transmissionNeutralPos; 
+      }
+  else {
+      transmissionServoValue = transmissionNeutralPos; 
+      }
+
+   // transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);    // - 60=reverse; 73=neutral; 92=first
+    digitalWrite(transmissionPowerPin, LOW);            // turn power on to transmission servo
+    transmissionServo.write(transmissionServoValue);    // sets the servo position according to the scaled value
     //Serial.print("pot val-original: "); Serial.print(tranmissioPotValue);
     //Serial.print(", pot val-mapped: "); Serial.println(transmissionServoValue);
 }

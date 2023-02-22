@@ -217,7 +217,7 @@ void startSerial(){
       delay(1000);   // loop forever and don't continue
   }
   delay(7000);
-  Serial.println("starting: radio_control_tractor_v1");
+  Serial.println("starting: tractor_control");
 }
 void InitLoRa(){ // initialize SX1276 with default settings
   Serial.print(F("[SX1276] Initializing ... "));
@@ -340,12 +340,12 @@ void print_Info_messages(){
     //Serial.print(F(", Freq error: ")); Serial.print(radio.getFrequencyError());
     //Serial.print(F(", Hz"));
     //Serial.print(", steering: "); Serial.print(RadioControlData.steering_val);
-    Serial.print(", throttle: "); Serial.print(RadioControlData.throttle_val);
-    Serial.print(", throttle-mapped: "); Serial.print(transmissionServoValue);
+    //Serial.print(", throttle: "); Serial.print(RadioControlData.throttle_val);
+    //Serial.print(", throttle-mapped: "); Serial.print(transmissionServoValue);
     //Serial.print(", press_norm: "); Serial.print(RadioControlData.press_norm);
     //Serial.print(", press_hg: "); Serial.print(RadioControlData.press_hg);
     //Serial.print(", temp: "); Serial.print(RadioControlData.temp);
-    Serial.print(", setPoint: "); Serial.print(setPoint);
+    //Serial.print(", setPoint: "); Serial.print(setPoint);
     //Serial.print(", steering_actual_angle: "); Serial.print(steering_actual_angle);
     //Serial.print(", error: "); Serial.print(error);
     //Serial.print(", steer effort: "); Serial.print(steer_effort);
@@ -361,12 +361,12 @@ void steerVehicle(){
 Although I have tested the PID I still have the external potentiometers connected in order
 to continue tuning the PID.
 */
-    //kp=5.0; // previously 6.15
+    //kp=270.0; // based on testing on 2/22/23
     //ki = 0.00001;
     ki = 0.00;    
-    //kd=550;
+    //kd=150;   // 100 and 200 were OK; 300 slowed steering down based on 2/22/23 testing
     //kp = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 10);
-    kp = mapfloat(analogRead(mode_pin), 0, 4095, 3, 7);    
+    kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);    
     //ki = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 0.0003); 
     ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);    
     //kd = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 2000);
@@ -395,7 +395,7 @@ to continue tuning the PID.
     else {
         Serial.print("Fatal error - unknown mode sw value: "); Serial.print(RadioControlData.control_mode);  
     }
-    //Serial.print("e: "); Serial.println(error); 
+    Serial.print("e: "); Serial.println(error); 
     steering_actual_pot = analogRead(steer_angle_pin); 
     steering_actual_angle = mapfloat(steering_actual_pot, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
     steer_effort_float = computePID(steering_actual_angle);
@@ -407,16 +407,16 @@ to continue tuning the PID.
     if (steer_effort > motor_power_limit){steer_effort = motor_power_limit;} // motor_power_limit
    
     if(error > tolerance){     
-        //Serial.print("e-r: "); Serial.print(error);  
-        //Serial.print("s-r: "); Serial.println(steer_effort);                 
+        Serial.print("e-r: "); Serial.print(error);  
+        Serial.print("s-r: "); Serial.println(steer_effort);                 
         digitalWrite(DIRPin, HIGH);   // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
         //if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
         analogWrite(PWMPin, steer_effort);
         } 
 
     else if(error < (tolerance*-1)){   
-        //Serial.print("e-l: "); Serial.print(error); 
-        //Serial.print("s-l: "); Serial.println(steer_effort);   
+        Serial.print("e-l: "); Serial.print(error); 
+        Serial.print("s-l: "); Serial.println(steer_effort);   
         digitalWrite(DIRPin, LOW); // steer left - channel A led is lit; black wire (-) to motor; negative voltage
         //if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
         analogWrite(PWMPin, abs(steer_effort));

@@ -13,8 +13,10 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 */
 
 // include the library
-#include "ros.h"
-#include "geometry_msgs/Twist.h"
+//#include "ros.h"
+//#include "geometry_msgs/Twist.h"
+#include <ros.h>
+#include <geometry_msgs/Twist.h>
 #include <RadioLib.h>
 #include <ESP32Servo.h>
 #include <Adafruit_SSD1306.h>
@@ -35,6 +37,7 @@ void eStopRoutine();
 void transmissionServoSetup();
 void startOLED();
 void displayOLED();
+void createCSV();
 
 // radio related
 float FREQUENCY = 915.0;  // MHz - EU 433.5; US 915.0
@@ -82,11 +85,13 @@ const long transmitInterval = 500;
 const long infoInterval = 2000;
 const long steerInterval = 50;  // 100 10 HZ, 50 20Hz, 20 = 50 Hz
 const long throttleInterval = 1000;
+const long csvInterval = 200;
 unsigned long prev_time_reading = 0;
 unsigned long prev_time_xmit = 0;
 unsigned long prev_time_printinfo = 0;
 unsigned long prev_time_steer = 0;
 unsigned long prev_time_throttle = 0;
+unsigned long prev_time_csv = 0;
 /////////////////////////////////////////////////////////////////
 
 ///////////////////Steering variables///////////////////////
@@ -170,11 +175,18 @@ float angular_vel_z = 0;
 float linear_vel_x  = 0;  
 unsigned long prev_cmd_vel_time = 0;
 
+ros::NodeHandle nh;
+
 void getCMD_VEL(const geometry_msgs::Twist& cmd_msg) {
+    Serial.println("in getCMD_VEL");
     linear_vel_x  = cmd_msg.linear.x;  
     angular_vel_z = cmd_msg.angular.z;
     prev_cmd_vel_time = millis();
 }
+
+ros::Subscriber<geometry_msgs::Twist> cmd_msg("cmd_vel", &getCMD_VEL);  
+//ros::Subscriber<geometry_msgs::Twist> subCmdVel("cmd_vel", &calc_pwm_values );
+
 
 void setup() {
   pinMode(steer_angle_pin,INPUT);
@@ -188,9 +200,15 @@ void setup() {
   transmissionServoSetup();
   startSerial();
   startOLED();
-  InitLoRa();
-  ros::NodeHandle nh;
-  ros::Subscriber<geometry_msgs::Twist> cmd_msg("/cmd_vel", &getCMD_VEL);  
+  InitLoRa();  
+
+  // ROS Setup
+  nh.getHardware()->setBaud(115200);
+  nh.initNode();
+  //nh.advertise(rightPub);
+  //nh.advertise(leftPub);
+  nh.subscribe(cmd_msg);
+
 }
 void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
@@ -209,14 +227,15 @@ void loop() {
     if ((currentMillis - prev_time_reading)    >= readingInterval)   {getTractorData();}
     if ((currentMillis - prev_time_xmit)       >= transmitInterval)  {sendOutgoingMsg();}
     if ((currentMillis - prev_time_printinfo)  >= infoInterval)      {print_Info_messages();} 
-    if ((currentMillis - prev_time_OLED)       >= OLEDInterval)      {displayOLED();}          
+    if ((currentMillis - prev_time_OLED)       >= OLEDInterval)      {displayOLED();}
+   // if ((currentMillis - prev_time_csv)        >= csvInterval)       {createCSV();}           
 }
 void startSerial(){
   Serial.begin(115200);
   while (!Serial) {
       delay(1000);   // loop forever and don't continue
   }
-  delay(7000);
+  delay(2000);
   Serial.println("starting: tractor_control");
 }
 void InitLoRa(){ // initialize SX1276 with default settings
@@ -339,7 +358,9 @@ void print_Info_messages(){
     //Serial.print(F(", dB"));
     //Serial.print(F(", Freq error: ")); Serial.print(radio.getFrequencyError());
     //Serial.print(F(", Hz"));
-    //Serial.print(", steering: "); Serial.print(RadioControlData.steering_val);
+    Serial.print(", mode_sw: "); Serial.print(RadioControlData.control_mode);
+    Serial.print(", steering: "); Serial.print(angular_vel_z);
+    Serial.print(", throttle: "); Serial.print(linear_vel_x);
     //Serial.print(", throttle: "); Serial.print(RadioControlData.throttle_val);
     //Serial.print(", throttle-mapped: "); Serial.print(transmissionServoValue);
     //Serial.print(", press_norm: "); Serial.print(RadioControlData.press_norm);
@@ -515,4 +536,13 @@ void displayOLED(){
   //display.setCursor(0,57);     display.print("T cntr:");    display.setCursor(58,57);     display.print(TractorData.counter);   
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
+}
+void createCSV(){
+/*
+currentTime, steering_actual_angle, setPoint, kp, ki, kd
+*/
+    Serial.print(", Kp: "); Serial.print(kp, 2);
+    Serial.print(", Ki: "); Serial.print(ki, 5);
+    Serial.print(", Kd: "); Serial.print(kd, 2);    
+
 }

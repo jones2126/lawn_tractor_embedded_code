@@ -19,6 +19,14 @@
 		{
 			"name": "test_cmd_vel_subscribe",
 			"path": "test_cmd_vel_subscribe"
+		},
+		{
+			"name": "test_subscribe_cmd_vel",
+			"path": "test_subscribe_cmd_vel"
+		},
+		{
+			"name": "ros_init_on_esp32",
+			"path": "ros_init_on_esp32"
 		}
 	]
 }

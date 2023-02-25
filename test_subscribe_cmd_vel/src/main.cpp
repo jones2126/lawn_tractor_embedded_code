@@ -10,7 +10,8 @@ void cmd_vel_callback(const geometry_msgs::Twist& msg) {
     // For example, extract linear and angular velocity from the message
     double linear_vel = msg.linear.x;
     double angular_vel = msg.angular.z;
-    Serial.println("Received cmd_vel: linear=%f, angular=%f", linear_vel, angular_vel);
+    //Serial.println("Received cmd_vel: linear=%f, angular=%f", linear_vel, angular_vel);
+    Serial.println("Received cmd_vel: linear=",linear_vel, " angular=", angular_vel);
     //ROS_INFO("Received cmd_vel: linear=%f, angular=%f", linear_vel, angular_vel);
 }
 

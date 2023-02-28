@@ -1,3 +1,4 @@
+#define ROSSERIAL_ARDUINO_TCP
 #include <Arduino.h>
 #include <ESP_WiFiManager.h>
 #include <ros.h>
@@ -16,7 +17,11 @@ uint8_t serverAddress[] = {192, 168, 1, 242};
 IPAddress server(serverAddress);
 const uint16_t serverPort = 11411;
 
-ros::NodeHandle nh;
+// ros::NodeHandle nh;
+  //nh.getHardware()->setConnection(server, serverPort);
+  //ros::NodeHandle nh("serial://ttyUSB0:115200");
+ros::NodeHandle nh("serial:/dev/ttgo_main");
+
 void twistCallback(const geometry_msgs::Twist& msg){
     digitalWrite(LED_PIN, HIGH);   
     delay(1000);                       
@@ -60,7 +65,6 @@ void wifi_setup(){
   Serial.println(WiFi.localIP());
 }
 void node_handle_setup(){
-  nh.getHardware()->setConnection(server, serverPort);
   nh.initNode();
   nh.subscribe(sub);  
 }

@@ -19,6 +19,14 @@
 		{
 			"name": "test_rosserial",
 			"path": "test_rosserial"
+		},
+		{
+			"name": "nano_every_pubsub",
+			"path": "nano_every_pubsub"
+		},
+		{
+			"name": "ttgo_esp32_pubsub",
+			"path": "ttgo_esp32_pubsub"
 		}
 	]
 }

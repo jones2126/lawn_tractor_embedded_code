@@ -1,70 +1,42 @@
-#define ROSSERIAL_ARDUINO_TCP
-#include <Arduino.h>
-#include <ESP_WiFiManager.h>
-#include <ros.h>
-//#include <std_msgs/Empty.h>
-#include <geometry_msgs/Twist.h>
+/*
+ * rosserial PubSub Example
+ * Prints/publishes "hello world!" and toggles led
+ * to toggle the LED issue the commands
+ * window 1: $ roscore
+ * window 2: $ rosrun rosserial_python serial_node.py /dev/ttyACM0    # confirm port first
+ * window 3: $ rostopic echo /chatter  then $ rostopic pub toggle_led std_msgs/Empty --once 
+ * window 3: 
+ * $ rostopic pub -r 10 /cmd_vel geometry_msgs/Twist '{linear: {x: 0.2, y: 0.0, z: 0.0}, angular: {x: 0.0,y: 0.0,z: 0.1}}'
+ */
+//#include "ros/ros.h"
+#include "ros.h"
+/**
+ * This tutorial demonstrates the use of timer callbacks.
+ */
 
-#define LED_PIN 2
-void wifi_setup();
-void node_handle_setup();
-
-// wifi related
-const char* ssid     = "cui_bono";
-const char* password = "Andrew13";
-//uint8_t serverAddress[] = {127, 0, 0, 1};
-uint8_t serverAddress[] = {192, 168, 1, 242};
-IPAddress server(serverAddress);
-const uint16_t serverPort = 11411;
-
-// ros::NodeHandle nh;
-  //nh.getHardware()->setConnection(server, serverPort);
-  //ros::NodeHandle nh("serial://ttyUSB0:115200");
-ros::NodeHandle nh("serial:/dev/ttgo_main");
-
-void twistCallback(const geometry_msgs::Twist& msg){
-    digitalWrite(LED_PIN, HIGH);   
-    delay(1000);                       
-    digitalWrite(LED_PIN, LOW);    
-    delay(1000); 
-    double linear_vel = msg.linear.x;
-    double angular_vel = msg.angular.z;
-    String message_output = "Received cmd_vel: linear=" + String(linear_vel,3) + " angular=" + String(angular_vel, 3);
-    Serial.println(message_output);
+void callback1(const ros::TimerEvent&)
+{
+  ROS_INFO("Callback 1 triggered");
 }
 
-ros::Subscriber<geometry_msgs::Twist> sub("/cmd_vel", twistCallback);
+void callback2(const ros::TimerEvent&)
+{
+  ROS_INFO("Callback 2 triggered");
+}
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("test_rosserial program");
-  pinMode(LED_PIN, OUTPUT);
-  wifi_setup();
-  node_handle_setup();
-}
-void loop() {
-  nh.spinOnce();
-  digitalWrite(LED_PIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(200);                       // wait for a second
-  digitalWrite(LED_PIN, LOW);    // turn the LED off by making the voltage LOW
-  delay(200);
-  Serial.println("looping"); 
-}
-void wifi_setup(){
-  // wifi setup
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  //# -> wifi delay -> a must -> other wise the ESP32 (TTGO) board will restart continuously
-  while (WiFi.status() != WL_CONNECTED)  
-  { delay(500);
-    Serial.print(".");
-  }
-  Serial.println("WiFi connected - IP address:  ");
-  Serial.println(WiFi.localIP());
-}
-void node_handle_setup(){
-  nh.initNode();
-  nh.subscribe(sub);  
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "talker");
+  ros::NodeHandle n;
+
+  /**
+   * Timers allow you to get a callback at a specified rate.  Here we create
+   * two timers at different rates as a demonstration.
+   */
+  ros::Timer timer1 = n.createTimer(ros::Duration(0.1), callback1);
+  ros::Timer timer2 = n.createTimer(ros::Duration(1.0), callback2);
+
+  ros::spin();
+
+  return 0;
 }

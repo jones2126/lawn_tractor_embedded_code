@@ -4,43 +4,64 @@
  * to toggle the LED issue the commands
  * window 1: $ roscore
  * window 2: $ rosrun rosserial_python serial_node.py /dev/ttyACM0    # confirm port first
- * window 3: $ rostopic echo /chatter  then $ rostopic pub toggle_led std_msgs/Empty --once 
+ * window 3: $ rostopic echo /chatter  then $ rostopic pub toggle_led std_msgs/Empty --once
+ * window 4: 
+ * $ rostopic pub -r 10 /cmd_vel geometry_msgs/Twist '{linear: {x: 0.2, y: 0.0, z: 0.0}, angular: {x: 0.0,y: 0.0,z: 0.1}}'
  */
-//#include <Arduino.h>
+
 #include <ros.h>
+#include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
-#include <std_msgs/Empty.h>
 
-#define LED_PIN 2   // 13 for Nano Every, 2 for TTGO LoRa
-
-ros::NodeHandle  nh;
-
-
-void messageCb( const std_msgs::Empty& toggle_msg){
-  digitalWrite(LED_PIN, HIGH-digitalRead(LED_PIN));   // blink the led
-}
-
-ros::Subscriber<std_msgs::Empty> sub("toggle_led", messageCb );
-
-
+ros::NodeHandle nh;
 
 std_msgs::String str_msg;
-ros::Publisher chatter("chatter", &str_msg);
+ros::Publisher chatter_pub("chatter", &str_msg);
 
-char hello[13] = "hello world!";
+#define LED_PIN 2
 
-void setup()
-{
-  pinMode(LED_PIN, OUTPUT);
-  nh.initNode();
-  nh.advertise(chatter);
-  nh.subscribe(sub);
+float linear_x, angular_z;
+char buf[100];
+const long chatterInterval = 2000;
+unsigned long prev_time_chatter = 0;
+const long cmd_velInterval = 500;
+unsigned long prev_time_cmdvel = 0;
+
+void chatter() {
+  if (millis() - prev_time_chatter > chatterInterval) {
+    prev_time_chatter = millis();
+    sprintf(buf, "linear x: %f, angular z: %f", linear_x, angular_z);
+    str_msg.data = buf;
+    chatter_pub.publish(&str_msg);
+    digitalWrite(LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(LED_PIN, LOW);
+  }
 }
 
-void loop()
-{
-  str_msg.data = hello;
-  chatter.publish( &str_msg );
+void cmd_vel(const geometry_msgs::Twist& vel) {
+  linear_x = vel.linear.x;
+  angular_z = vel.angular.z;
+  prev_time_cmdvel = millis();
+}
+void check_cmdvel(){
+  if (millis() - prev_time_cmdvel > cmd_velInterval) {
+    linear_x = 0;
+    angular_z = 0; 
+  }
+}
+
+ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
+
+void setup() {
+  nh.initNode();
+  nh.subscribe(cmd_vel_sub);
+  nh.advertise(chatter_pub);
+  nh.loginfo("Hello, ROS!");    // enable ROS logging mechanism
+}
+
+void loop() {
   nh.spinOnce();
-  delay(500);
+  chatter();
+  check_cmdvel();
 }

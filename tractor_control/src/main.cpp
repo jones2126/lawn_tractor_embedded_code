@@ -12,17 +12,16 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 
 */
 
-// include the library
-// #include "ros.h"
-// #include "geometry_msgs/Twist.h"
 #include <ros.h>
 #include <geometry_msgs/Twist.h>
+#include <std_msgs/String.h>
+
 #include <RadioLib.h>
 #include <ESP32Servo.h>
 #include <Adafruit_SSD1306.h>
 
 // functions below loop() - required to tell VSCode compiler to look for them below.  Not required when using Arduino IDE
-void startSerial();
+// void startSerial();
 void InitLoRa();
 void getTractorData();
 void sendOutgoingMsg();
@@ -37,6 +36,8 @@ void transmissionServoSetup();
 void startOLED();
 void displayOLED();
 void createCSV();
+void ROSsetup();
+void check_LoRaRX();
 
 // radio related
 float FREQUENCY = 915.0;                   // MHz - EU 433.5; US 915.0
@@ -47,6 +48,9 @@ byte SYNC_WORD = 0x12;                     // set LoRa sync word to 0x12...NOTE:
 float F_OFFSET = 1250 / 1e6;               // Hz - optional if you want to offset the frequency
 int8_t POWER = 15;                         // 2 - 20dBm
 SX1276 radio = new Module(18, 26, 14, 33); // Module(CS, DI0, RST, ??); - Module(18, 26, 14, 33);
+unsigned long lastLoraRxTime = 0;
+const long minlastLoraRx = 500;
+bool safety_flag_LoRaRx = false;
 
 struct RadioControlStruct
 {
@@ -170,47 +174,86 @@ int transmissionServoValue = transmissionNeutralPos; // neutral position
 int tranmissioPotValue = 0;                          // incoming throttle setting
 
 /////////// ROS Variables /////////////////////
-float angular_vel_z = 0;
-float linear_vel_x = 0;
-unsigned long prev_cmd_vel_time = 0;
 
+// ros setup
 ros::NodeHandle nh;
+std_msgs::String str_msg;
+ros::Publisher chatter_pub("chatter", &str_msg);
 
-void getCMD_VEL(const geometry_msgs::Twist &cmd_msg)
+unsigned long prev_cmd_vel_time = 0;
+bool safety_flag_cmd_vel = false; 
+
+float linear_x, angular_z;
+//char buf[200];
+char charBuf[150];
+const long chatterInterval = 2000;
+unsigned long prev_time_chatter = 0;
+const long cmd_velInterval = 500;
+unsigned long prev_time_cmdvel = 0;
+
+void chatter()
 {
-  Serial.println("in getCMD_VEL");
-  linear_vel_x = cmd_msg.linear.x;
-  angular_vel_z = cmd_msg.angular.z;
-  prev_cmd_vel_time = millis();
+  if (millis() - prev_time_chatter > chatterInterval)
+  {
+    prev_time_chatter = millis();
+/*    
+    sprintf(buf, "linear x: %.2f, angular z: %.2f, steer: %.2f, trans: %d\r\nmode: %d, LoRa: %d, cmd_vel: %d", 
+      linear_x, angular_z, setPoint, transmissionServoValue, RadioControlData.control_mode, safety_flag_LoRaRx, safety_flag_cmd_vel);
+    str_msg.data = buf;
+*/
+    // Create a string containing the message data
+    String message = "Line 1: linear x: " + String(linear_x, 2)
+                   + "angular z: " + String(angular_z, 2)
+                   + "steer: " + String(setPoint, 2) 
+                   + "trans: " + String(transmissionServoValue);
+    message.toCharArray(charBuf, message.length() + 1);
+    str_msg.data = charBuf;
+    chatter_pub.publish(&str_msg);
+    delay(5);
+    message = "";
+    message =      "Line 2: mode: " + String(RadioControlData.control_mode)
+                   + "LoRa: " + String(safety_flag_LoRaRx)
+                   + "cmd_vel: " + String(safety_flag_cmd_vel);
+    //char charBuf[message.length() + 1];      // Convert the string to a character array
+    message.toCharArray(charBuf, message.length() + 1);
+    str_msg.data = charBuf;
+    chatter_pub.publish(&str_msg);
+  }
 }
 
-ros::Subscriber<geometry_msgs::Twist> cmd_msg("cmd_vel", &getCMD_VEL);
-// ros::Subscriber<geometry_msgs::Twist> subCmdVel("cmd_vel", &calc_pwm_values );
+void cmd_vel(const geometry_msgs::Twist &vel){
+  linear_x = vel.linear.x;
+  angular_z = vel.angular.z;
+  prev_time_cmdvel = millis();
+}
+void check_cmdvel(){
+  if (millis() - prev_time_cmdvel > cmd_velInterval){
+    linear_x = 0;
+    angular_z = 0;
+    safety_flag_cmd_vel = false;
+  } else {
+    safety_flag_cmd_vel = true;
+  }
 
-void setup()
-{
+}
+
+ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
+
+void setup(){
   pinMode(steer_angle_pin, INPUT);
-  pinMode(mode_pin, INPUT); // used for testing - read Kp from potentiometer
-  // throttle_pot_pin
+  pinMode(mode_pin, INPUT);         // used for testing - read Kp from potentiometer
   pinMode(steering_pot_pin, INPUT); // used for testing - read Kd from potentiometer
   pinMode(throttle_pot_pin, INPUT); // used for testing - read Kd from potentiometer
   pinMode(PWMPin, OUTPUT);
   pinMode(DIRPin, OUTPUT);
   pinMode(estopRelay_pin, OUTPUT);
   transmissionServoSetup();
-  startSerial();
+  // startSerial();
   startOLED();
   InitLoRa();
-
-  // ROS Setup
-  nh.getHardware()->setBaud(115200);
-  nh.initNode();
-  // nh.advertise(rightPub);
-  // nh.advertise(leftPub);
-  nh.subscribe(cmd_msg);
+  ROSsetup();
 }
-void transmissionServoSetup()
-{
+void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
   ESP32PWM::allocateTimer(0); // Allow allocation of all timers
   ESP32PWM::allocateTimer(1);
@@ -219,10 +262,13 @@ void transmissionServoSetup()
   transmissionServo.setPeriodHertz(50);                       // standard 50 hz servo
   transmissionServo.attach(transmissionSignalPin, 500, 2400); // attaches the servo on pin 18 to the servo object
 }
-void loop()
-{
+void loop(){
   unsigned long currentMillis = millis();
   handleIncomingMsg();
+  nh.spinOnce();
+  chatter();
+  check_cmdvel();
+  check_LoRaRX();
   if ((currentMillis - prev_time_steer) >= steerInterval)
   {
     steerVehicle();
@@ -239,103 +285,98 @@ void loop()
   {
     sendOutgoingMsg();
   }
-  if ((currentMillis - prev_time_printinfo) >= infoInterval)
-  {
-    print_Info_messages();
-  }
+  // if ((currentMillis - prev_time_printinfo)   >= infoInterval)      {print_Info_messages();}
   if ((currentMillis - prev_time_OLED) >= OLEDInterval)
   {
     displayOLED();
   }
-  // if ((currentMillis - prev_time_csv)        >= csvInterval)       {createCSV();}
-}
-void startSerial()
-{
-  Serial.begin(115200);
-  while (!Serial)
-  {
-    delay(1000); // loop forever and don't continue
-  }
-  delay(2000);
-  Serial.println("starting: tractor_control");
 }
 void InitLoRa()
 { // initialize SX1276 with default settings
-  Serial.print(F("[SX1276] Initializing ... "));
+  // Serial.print(F("[SX1276] Initializing ... "));
   int state = radio.begin();
   if (state == RADIOLIB_ERR_NONE)
   {
-    Serial.println(F("success!"));
+    // Serial.println(F("success!"));
   }
   else
   {
-    Serial.print(F("failed, code "));
-    Serial.println(state);
+    // Serial.print(F("failed, code "));
+    // Serial.println(state);
     while (true)
       ;
   }
 
   if (radio.setFrequency(FREQUENCY) == RADIOLIB_ERR_INVALID_FREQUENCY)
   {
-    Serial.println(F("Selected frequency is invalid for this module!"));
+    // Serial.println(F("Selected frequency is invalid for this module!"));
     while (true)
       ;
   }
-  Serial.print("Selected frequency is: ");
-  Serial.println(FREQUENCY);
+  // Serial.print("Selected frequency is: ");
+  // Serial.println(FREQUENCY);
 
   if (radio.setBandwidth(BANDWIDTH) == RADIOLIB_ERR_INVALID_BANDWIDTH)
   {
-    Serial.println(F("Selected bandwidth is invalid for this module!"));
+    // Serial.println(F("Selected bandwidth is invalid for this module!"));
     while (true)
       ;
   }
-  Serial.print("Selected bandwidth is: ");
-  Serial.println(BANDWIDTH);
+  // Serial.print("Selected bandwidth is: ");
+  // Serial.println(BANDWIDTH);
 
   if (radio.setSpreadingFactor(SPREADING_FACTOR) == RADIOLIB_ERR_INVALID_SPREADING_FACTOR)
   {
-    Serial.println(F("Selected spreading factor is invalid for this module!"));
+    // Serial.println(F("Selected spreading factor is invalid for this module!"));
     while (true)
       ;
   }
-  Serial.print("Selected spreading factor is: ");
-  Serial.println(SPREADING_FACTOR);
+  // Serial.print("Selected spreading factor is: ");
+  // Serial.println(SPREADING_FACTOR);
 
   if (radio.setCodingRate(CODING_RATE) == RADIOLIB_ERR_INVALID_CODING_RATE)
   {
-    Serial.println(F("Selected coding rate is invalid for this module!"));
+    // Serial.println(F("Selected coding rate is invalid for this module!"));
     while (true)
       ;
   }
-  Serial.print("Selected coding rate is: ");
-  Serial.println(CODING_RATE);
+  // Serial.print("Selected coding rate is: ");
+  // Serial.println(CODING_RATE);
 
   if (radio.setSyncWord(SYNC_WORD) != RADIOLIB_ERR_NONE)
   {
-    Serial.println(F("Unable to set sync word!"));
+    // Serial.println(F("Unable to set sync word!"));
     while (true)
       ;
   }
-  Serial.print("Selected sync word is: ");
-  Serial.println(SYNC_WORD, HEX);
+  // Serial.print("Selected sync word is: ");
+  // Serial.println(SYNC_WORD, HEX);
 
   if (radio.setOutputPower(POWER, true) == RADIOLIB_ERR_NONE)
   {
-    Serial.print("Selected Power set at: ");
-    Serial.println(POWER);
+    // Serial.print("Selected Power set at: ");
+    // Serial.println(POWER);
   }
   else
   {
-    Serial.println(F("Unable to set power level!"));
-    Serial.print(F("failed, code "));
-    Serial.println(state);
+    // Serial.println(F("Unable to set power level!"));
+    // Serial.print(F("failed, code "));
+    // Serial.println(state);
     while (true)
       ;
   }
 
   delay(10000);
 }
+
+void ROSsetup()
+{
+  nh.initNode();
+  nh.subscribe(cmd_vel_sub);
+  nh.advertise(chatter_pub);
+  nh.loginfo("Hello, ROS!"); // enable ROS logging mechanism
+}
+
 void getTractorData()
 { // just using placeholders for now
   TractorData.speed = 255;
@@ -345,8 +386,6 @@ void getTractorData()
 }
 void sendOutgoingMsg()
 {
-  digitalWrite(led, HIGH);
-  // Serial.print(F(", xmit"));
   memcpy(tx_TractorData_buf, &TractorData, TractorData_message_len);
   int state = radio.transmit(tx_TractorData_buf, TractorData_message_len);
   if (state == RADIOLIB_ERR_NONE)
@@ -356,21 +395,20 @@ void sendOutgoingMsg()
   else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
   {
     // the supplied packet was longer than 256 bytes
-    Serial.println(F("too long!"));
+    // Serial.println(F("too long!"));
   }
   else if (state == RADIOLIB_ERR_TX_TIMEOUT)
   {
     // timeout occurred while transmitting packet
-    Serial.println(F("timeout!"));
+    // Serial.println(F("timeout!"));
   }
   else
   {
     // some other error occurred
-    Serial.print(F("failed, code "));
-    Serial.println(state);
+    // Serial.print(F("failed, code "));
+    // Serial.println(state);
   }
   TractorData.counter++;
-  digitalWrite(led, LOW);
 }
 void handleIncomingMsg()
 {
@@ -379,6 +417,8 @@ void handleIncomingMsg()
   if (state == RADIOLIB_ERR_NONE)
   { // packet was successfully received
     memcpy(&RadioControlData, tx_RadioControlData_buf, RadioControlData_message_len);
+    safety_flag_LoRaRx = true;
+    lastLoraRxTime = millis();
     if (RadioControlData.estop == 0)
     {
       eStopRoutine();
@@ -391,18 +431,22 @@ void handleIncomingMsg()
   }
   else if (state == RADIOLIB_ERR_RX_TIMEOUT)
   { // timeout occurred while waiting for a packet
-    Serial.print(F("waiting..."));
+    // Serial.print(F("waiting..."));
+    safety_flag_LoRaRx = false;
   }
   else if (state == RADIOLIB_ERR_CRC_MISMATCH)
   { // packet was received, but is malformed
-    Serial.println(F("nothing received, no timeout, but CRC error!"));
+    // Serial.println(F("nothing received, no timeout, but CRC error!"));
+    safety_flag_LoRaRx = false;
   }
   else
   { // some other error occurred
-    Serial.print(F("nothing received, no timeout, printing failed code "));
-    Serial.println(state);
+    // Serial.print(F("nothing received, no timeout, printing failed code "));
+    // Serial.println(state);
+    safety_flag_LoRaRx = false;
   }
 }
+/*
 void print_Info_messages()
 {
   printf("\n");
@@ -429,7 +473,7 @@ void print_Info_messages()
   Serial.print(", steering: ");
   Serial.print(angular_vel_z);
   Serial.print(", throttle: ");
-  Serial.print(linear_vel_x);
+  Serial.print(linear_x);
   // Serial.print(", throttle: "); Serial.print(RadioControlData.throttle_val);
   // Serial.print(", throttle-mapped: "); Serial.print(transmissionServoValue);
   // Serial.print(", press_norm: "); Serial.print(RadioControlData.press_norm);
@@ -449,6 +493,7 @@ void print_Info_messages()
   // Serial.print(", Kp pot: "); Serial.print(analogRead(kp_pot_pin));
   printf("\n");
 }
+*/
 void steerVehicle()
 {
   /*
@@ -477,25 +522,21 @@ void steerVehicle()
   */
 
   // setPoint is used in ComputePID to calculate error to target
-  if (RadioControlData.control_mode == 2)
+  if ((RadioControlData.control_mode == 2) && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    setPoint = angular_vel_z; // value range -.73 to +.73
+    setPoint = angular_z; // value range -.73 to +.73
   }
-  else if (RadioControlData.control_mode == 1)
+  else if ((RadioControlData.control_mode == 1 && safety_flag_LoRaRx))
   {
     setPoint = RadioControlData.steering_val; // value range needs to match cmd_vel range
   }
-  else if (RadioControlData.control_mode == 0)
+  else 
   {
     setPoint = 0;
   }
-  else
-  {
-    Serial.print("Fatal error - unknown mode sw value: ");
-    Serial.print(RadioControlData.control_mode);
-  }
-  Serial.print("e: ");
-  Serial.println(error);
+
+  // Serial.print("e: ");
+  // Serial.println(error);
   steering_actual_pot = analogRead(steer_angle_pin);
   steering_actual_angle = mapfloat(steering_actual_pot, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
   steer_effort_float = computePID(steering_actual_angle);
@@ -514,10 +555,10 @@ void steerVehicle()
 
   if (error > tolerance)
   {
-    Serial.print("e-r: ");
-    Serial.print(error);
-    Serial.print("s-r: ");
-    Serial.println(steer_effort);
+    // Serial.print("e-r: ");
+    // Serial.print(error);
+    // Serial.print("s-r: ");
+    // Serial.println(steer_effort);
     digitalWrite(DIRPin, HIGH); // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, steer_effort);
@@ -525,10 +566,10 @@ void steerVehicle()
 
   else if (error < (tolerance * -1))
   {
-    Serial.print("e-l: ");
-    Serial.print(error);
-    Serial.print("s-l: ");
-    Serial.println(steer_effort);
+    // Serial.print("e-l: ");
+    // Serial.print(error);
+    // Serial.print("s-l: ");
+    // Serial.println(steer_effort);
     digitalWrite(DIRPin, LOW); // steer left - channel A led is lit; black wire (-) to motor; negative voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, abs(steer_effort));
@@ -552,21 +593,17 @@ void throttleVehicle()
                 for safety
   */
 
-  if (RadioControlData.control_mode == 2 && linear_vel_x < 0)
+  if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    transmissionServoValue = map(linear_vel_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
+    transmissionServoValue = map(linear_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
   }
-  else if (RadioControlData.control_mode == 2 && linear_vel_x >= 0)
+  else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    transmissionServoValue = map(linear_vel_x, 0, 1.8, transmissionNeutralPos, transmissionFullForwardPos);
+    transmissionServoValue = map(linear_x, 0, 1.8, transmissionNeutralPos, transmissionFullForwardPos);
   }
-  else if (RadioControlData.control_mode == 1)
+  else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx)
   {
     transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos); // - 60=reverse; 73=neutral; 92=first
-  }
-  else if (RadioControlData.control_mode == 0)
-  {
-    transmissionServoValue = transmissionNeutralPos;
   }
   else
   {
@@ -606,7 +643,7 @@ void eStopRoutine()
 }
 void startOLED()
 {
-  Serial.println("In startOLED");
+  // Serial.println("In startOLED");
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
   delay(20);
@@ -614,7 +651,7 @@ void startOLED()
   Wire.begin(OLED_SDA, OLED_SCL);
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3c, false, false))
   { // Address 0x3C for 128x32
-    Serial.println(F("SSD1306 allocation failed"));
+    // Serial.println(F("SSD1306 allocation failed"));
     while (1)
       delay(1000); // loop forever and don't continue
   }
@@ -664,15 +701,24 @@ void displayOLED()
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
 }
+/*
 void createCSV()
 {
-  /*
+
   currentTime, steering_actual_angle, setPoint, kp, ki, kd
-  */
+
   Serial.print(", Kp: ");
   Serial.print(kp, 2);
   Serial.print(", Ki: ");
   Serial.print(ki, 5);
   Serial.print(", Kd: ");
   Serial.print(kd, 2);
+}
+*/
+void check_LoRaRX(){
+  if (millis() - lastLoraRxTime > minlastLoraRx){
+    safety_flag_LoRaRx = false;
+  } else {
+    safety_flag_LoRaRx = true;
+  }
 }

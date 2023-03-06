@@ -33,9 +33,9 @@ void chatter() {
     sprintf(buf, "linear x: %f, angular z: %f", linear_x, angular_z);
     str_msg.data = buf;
     chatter_pub.publish(&str_msg);
-    digitalWrite(LED_PIN, HIGH);
-    delay(200);
-    digitalWrite(LED_PIN, LOW);
+    //digitalWrite(LED_PIN, HIGH);
+    //delay(100);
+    //digitalWrite(LED_PIN, LOW);
   }
 }
 

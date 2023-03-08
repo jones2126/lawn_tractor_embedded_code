@@ -19,6 +19,10 @@
 		{
 			"name": "ttgo_esp32_pubsub",
 			"path": "ttgo_esp32_pubsub"
+		},
+		{
+			"name": "ttgo_test_servo",
+			"path": "ttgo_test_servo"
 		}
 	]
 }

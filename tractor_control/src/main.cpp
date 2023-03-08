@@ -15,6 +15,8 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 #include <ros.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Float32.h>
+#include <PID_v1.h>
 
 #include <RadioLib.h>
 #include <ESP32Servo.h>
@@ -38,6 +40,8 @@ void displayOLED();
 void createCSV();
 void ROSsetup();
 void check_LoRaRX();
+void left_speed_callback(const std_msgs::Float32& left_speed_msg);
+void right_speed_callback(const std_msgs::Float32& right_speed_msg);
 
 // radio related
 float FREQUENCY = 915.0;                   // MHz - EU 433.5; US 915.0
@@ -166,12 +170,26 @@ const long OLEDInterval = 500;
 Servo transmissionServo; // create servo object to control a servo
 // Servo CytronServo;  // create servo object to control a servo
 // myservo.attach(transmissionSignalPin);  // attaches the servo on pin 9 to the servo object
-int transmissionNeutralPos = 73;
+int transmissionNeutralPos = 72; // (no movement varied between 900 and 2100; I'm going to use ~1500 or 72
 // full_reverse and full_forward
 int transmissionFullReversePos = 50;
 int transmissionFullForwardPos = 110;
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 int tranmissioPotValue = 0;                          // incoming throttle setting
+
+// Define PID constants
+double trans_Kp = 0.0;
+double trans_Ki = 0.0;
+double trans_Kd = 0.0;
+
+// Define PID input and output variables
+double trans_input, trans_output, trans_setpoint;
+
+// Define the PID object
+PID trans_pid(&trans_input, &trans_output, &trans_setpoint, trans_Kp, trans_Ki, trans_Kd, DIRECT);
+
+// Define the left and right wheel speeds
+float left_speed, right_speed;
 
 /////////// ROS Variables /////////////////////
 
@@ -203,17 +221,18 @@ void chatter()
 */
     // Create a string containing the message data
     String message = "Line 1: linear x: " + String(linear_x, 2)
-                   + "angular z: " + String(angular_z, 2)
-                   + "steer: " + String(setPoint, 2) 
-                   + "trans: " + String(transmissionServoValue);
+                   + ", angular z: " + String(angular_z, 2)
+                   + ", steer: " + String(setPoint, 2) 
+                   + ", trans: " + String(transmissionServoValue);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);
     delay(5);
     message = "";
     message =      "Line 2: mode: " + String(RadioControlData.control_mode)
-                   + "LoRa: " + String(safety_flag_LoRaRx)
-                   + "cmd_vel: " + String(safety_flag_cmd_vel);
+                   + ", RSSI:" + radio.getRSSI();
+                   + ", LoRa: " + String(safety_flag_LoRaRx)
+                   + ", cmd_vel: " + String(safety_flag_cmd_vel);
     //char charBuf[message.length() + 1];      // Convert the string to a character array
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
@@ -591,15 +610,34 @@ void throttleVehicle()
       middle    manual        4095          1
       bottom    set to 0     ~1890          0
                 for safety
+
+
   */
 
   if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
     transmissionServoValue = map(linear_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
+    transmissionServoValue = constrain(transmissionServoValue, transmissionFullReversePos, transmissionNeutralPos);
+
+  /*
+  
+    // Calculate the actual speed
+  float actual_speed = (left_speed + right_speed) / 2.0;
+
+  // Compute the PID output for the throttle
+  throttle_pid.setInput(actual_speed);
+  throttle_pid.setSetpoint(target_speed);
+  throttle_pid.compute();
+
+    // Send the output to the transmission servo
+  transmissionServo.write(transmissionServoValue + trans_output);
+  */
+
   }
   else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    transmissionServoValue = map(linear_x, 0, 1.8, transmissionNeutralPos, transmissionFullForwardPos);
+    transmissionServoValue = map(linear_x, 0, 1.7, transmissionNeutralPos, transmissionFullForwardPos);
+    transmissionServoValue = constrain(transmissionServoValue, transmissionNeutralPos, transmissionFullForwardPos);
   }
   else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx)
   {
@@ -609,6 +647,8 @@ void throttleVehicle()
   {
     transmissionServoValue = transmissionNeutralPos;
   }
+
+
 
   // transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);    // - 60=reverse; 73=neutral; 92=first
   digitalWrite(transmissionPowerPin, LOW);         // turn power on to transmission servo
@@ -639,7 +679,7 @@ void eStopRoutine()
   digitalWrite(transmissionPowerPin, LOW); // make sure power is on to transmission servo
   transmissionServo.write(transmissionNeutralPos);
   delay(500);
-  digitalWrite(transmissionPowerPin, HIGH); // turn power on to transmission servo
+  digitalWrite(transmissionPowerPin, HIGH); // turn power off to transmission servo
 }
 void startOLED()
 {
@@ -668,7 +708,7 @@ void displayOLED()
   display.setTextSize(1);
   display.setCursor(0, row_1);
   display.print("Tractor Cntrl 02-21-23");
-  // display.setCursor(0,row_2);  display.print("RC Volt:");   display.setCursor(58,row_2);  display.print(voltage_val);
+  // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
   display.setCursor(0, row_2);
   display.print("RSSI:");
   display.setCursor(58, row_2);
@@ -721,4 +761,15 @@ void check_LoRaRX(){
   } else {
     safety_flag_LoRaRx = true;
   }
+}
+void left_speed_callback(const std_msgs::Float32& left_speed_msg)
+{
+  // Set the left wheel speed from the left_speed message
+  left_speed = left_speed_msg.data;
+}
+
+void right_speed_callback(const std_msgs::Float32& right_speed_msg)
+{
+  // Set the right wheel speed from the right_speed message
+  right_speed = right_speed_msg.data;
 }

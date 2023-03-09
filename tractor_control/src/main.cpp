@@ -19,7 +19,8 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 #include <PID_v1.h>
 
 #include <RadioLib.h>
-#include <ESP32Servo.h>
+//#include <ESP32Servo.h>
+#include <driver/ledc.h>
 #include <Adafruit_SSD1306.h>
 
 // functions below loop() - required to tell VSCode compiler to look for them below.  Not required when using Arduino IDE
@@ -103,7 +104,7 @@ unsigned long prev_time_csv = 0;
 
 ///////////////////Steering variables///////////////////////
 // pot values left: straight:1880; right:
-float safety_margin_pot = 400;                   // reduce this once I complete field testing
+float safety_margin_pot = 300;                   // reduce this once I complete field testing
 float left_limit_pot = 3245 - safety_margin_pot; // the actual extreme limit is 3245
 float left_limit_angle = -0.73;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 float right_limit_pot = 470 + safety_margin_pot; // the actual extreme limit is 470
@@ -119,9 +120,9 @@ const int motor_power_limit = 150;
 /////////////////////////////////////////////////////////////
 
 /////////////////// PID variables ///////////////////////
-float kp = 0; // 4.5 based on 12/15/22 testing, but will leave the pot connected
+float kp = 268; 
 float ki = 0.0;
-float kd = 0; // 40 based on 12/15/testing, but will leave the pot connected
+float kd = 385; // 100 and 200 were OK; 300 slowed steering 385 seems ok; 3/9/23
 unsigned long currentTime, previousTime;
 float elapsedTime;
 float error;
@@ -164,18 +165,29 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #define row_7 54
 unsigned long prev_time_OLED = 0;
 const long OLEDInterval = 500;
-///////////////////////////////////////////////////////////
+//////////////////////// variables for throttle/transmission ///////////////////////////////////
 // setup servo for throttle
 // Using “myservo.write(val);”  - 60=reverse; 73=neutral; 92=first
-Servo transmissionServo; // create servo object to control a servo
+//Servo transmissionServo; // create servo object to control a servo
 // Servo CytronServo;  // create servo object to control a servo
 // myservo.attach(transmissionSignalPin);  // attaches the servo on pin 9 to the servo object
-int transmissionNeutralPos = 72; // (no movement varied between 900 and 2100; I'm going to use ~1500 or 72
+int transmissionNeutralPos = 256;
 // full_reverse and full_forward
-int transmissionFullReversePos = 50;
-int transmissionFullForwardPos = 110;
+int transmissionFullReversePos = 230;  // represents ~-1.5 m/s
+int transmissionFullForwardPos = 315;  // represents ~+2.0 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
-int tranmissioPotValue = 0;                          // incoming throttle setting
+int tranmissioPotValue = 0;                   // incoming throttle setting
+
+#define PWM_CHANNEL 0
+#define PWM_FREQ 50
+/*
+Decide on the desired PWM Resolution (aka duty cycle range) for example 8 Bits which gives you a duty
+cycle range [0 – 255]. While setting it to 10Bits, gives you a range of [ 0 – 1023 ]. Twelve (12) bits 
+provides 4095 positions to access.
+ref: https://deepbluembedded.com/esp32-pwm-tutorial-examples-analogwrite-arduino/
+*/
+#define PWM_RESOLUTION 12
+#define PWM_MAX 4095  // (2 ^ PWM_RESOLUTION) - 1 - needs to coincide with PWM_RESOLUTION
 
 // Define PID constants
 double trans_Kp = 0.0;
@@ -220,8 +232,8 @@ void chatter()
     str_msg.data = buf;
 */
     // Create a string containing the message data
-    String message = "Line 1: linear x: " + String(linear_x, 2)
-                   + ", angular z: " + String(angular_z, 2)
+    String message = "1: lnr.x: " + String(linear_x, 2)
+                   + ", ang.z: " + String(angular_z, 2)
                    + ", steer: " + String(setPoint, 2) 
                    + ", trans: " + String(transmissionServoValue);
     message.toCharArray(charBuf, message.length() + 1);
@@ -229,10 +241,11 @@ void chatter()
     chatter_pub.publish(&str_msg);
     delay(5);
     message = "";
-    message =      "Line 2: mode: " + String(RadioControlData.control_mode)
-                   + ", RSSI:" + radio.getRSSI();
-                   + ", LoRa: " + String(safety_flag_LoRaRx)
-                   + ", cmd_vel: " + String(safety_flag_cmd_vel);
+    message =      "2: mode: " + String(RadioControlData.control_mode)
+                   + ", RSSI:" + radio.getRSSI()   
+                    + ", Kd " + String(kd, 2)                                  
+                    + ", LoRa: " + String(safety_flag_LoRaRx)
+                    + ", cmd_vel: " + String(safety_flag_cmd_vel);
     //char charBuf[message.length() + 1];      // Convert the string to a character array
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
@@ -274,12 +287,19 @@ void setup(){
 }
 void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
+/*  
   ESP32PWM::allocateTimer(0); // Allow allocation of all timers
   ESP32PWM::allocateTimer(1);
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
   transmissionServo.setPeriodHertz(50);                       // standard 50 hz servo
   transmissionServo.attach(transmissionSignalPin, 500, 2400); // attaches the servo on pin 18 to the servo object
+*/
+
+  digitalWrite(transmissionPowerPin, LOW);              // make sure power is on to transmission servo  
+  ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);     // Configure the PWM timer, channel 0, freq 50 Hz and 16 for ESP32 resolution
+  ledcAttachPin(transmissionSignalPin, PWM_CHANNEL);    // Attach the PWM channel to the output pin
+
 }
 void loop(){
   unsigned long currentMillis = millis();
@@ -519,28 +539,11 @@ void steerVehicle()
   Although I have tested the PID I still have the external potentiometers connected in order
   to continue tuning the PID.
   */
-  // kp=270.0; // based on testing on 2/22/23
-  // ki = 0.00001;
-  ki = 0.00;
-  // kd=150;   // 100 and 200 were OK; 300 slowed steering down based on 2/22/23 testing
-  // kp = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 10);
-  kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);
-  // ki = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 0.0003);
+
+  // kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);  // no longer using manual input 3/9/23
   ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
-  // kd = mapfloat(RadioControlData.throttle_val, 0, 4095, 0, 2000);
-  kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
+  //kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
 
-  /*
-      Physical  source for    pot value    mode
-      position  control                    value
-
-      top       cmd_vel          0          2
-      middle    manual        4095          1
-      bottom    set to 0     ~1890          0
-                for safety
-  */
-
-  // setPoint is used in ComputePID to calculate error to target
   if ((RadioControlData.control_mode == 2) && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
     setPoint = angular_z; // value range -.73 to +.73
@@ -651,11 +654,16 @@ void throttleVehicle()
 
 
   // transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);    // - 60=reverse; 73=neutral; 92=first
-  digitalWrite(transmissionPowerPin, LOW);         // turn power on to transmission servo
-  transmissionServo.write(transmissionServoValue); // sets the servo position according to the scaled value
+  //digitalWrite(transmissionPowerPin, LOW);         // turn power on to transmission servo
+  //transmissionServo.write(transmissionServoValue); // sets the servo position according to the scaled value
                                                    // Serial.print("pot val-original: "); Serial.print(tranmissioPotValue);
-  // Serial.print(", pot val-mapped: "); Serial.println(transmissionServoValue);
+
+  //pulseWidth = mapfloat(analogRead(pulseWidth_pot_pin), 0, 4095, 200, 300);
+  digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
+  ledcWrite(PWM_CHANNEL, transmissionServoValue);
+  prev_time_throttle = millis();
 }
+
 double computePID(float inp)
 {
   // ref: https://www.teachmemicro.com/arduino-pid-control-tutorial/
@@ -677,9 +685,11 @@ void eStopRoutine()
 {
   digitalWrite(estopRelay_pin, LOW);       // turn the LED on (HIGH is the voltage level)
   digitalWrite(transmissionPowerPin, LOW); // make sure power is on to transmission servo
-  transmissionServo.write(transmissionNeutralPos);
+  //transmissionServo.write(transmissionNeutralPos);
+  ledcWrite(PWM_CHANNEL, transmissionServoValue);
   delay(500);
   digitalWrite(transmissionPowerPin, HIGH); // turn power off to transmission servo
+
 }
 void startOLED()
 {

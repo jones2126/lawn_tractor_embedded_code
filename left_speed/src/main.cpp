@@ -121,7 +121,11 @@ void loop() {
   }  
 
 	if (millis() - prev_time_stamp_info >= infoInterval) {  // provide an informational message 
-    sprintf (buffer, "left_speed sensor - meters_travelled: %f RPM: %f m/s: %f", meters_travelled, RPM, meters_per_second);
+    String message = "left_speed sensor - meters_travelled: " + String(meters_travelled, 2)
+                   + ", RPM: " + String(RPM, 2)
+                   + ",  m/s: " + String(meters_per_second, 2);
+    message.toCharArray(buffer, message.length() + 1);    
+   // sprintf (buffer, "left_speed sensor - meters_travelled: %f RPM: %f m/s: %f", meters_travelled, RPM, meters_per_second);
     nh.loginfo(buffer);
 		prev_time_stamp_info = millis();
 	}

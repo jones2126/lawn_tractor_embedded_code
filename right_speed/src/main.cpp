@@ -1,7 +1,5 @@
 /*
-right_speed_sensor running on a teensy 3.2 reading an AS5048B with I2C communiction
-
-Reads AS5048B using a Teensy 3.2 and I2C communiction
+right_speed_sensor running on a Arduino Nano Every reading an AS5048B with I2C communiction
 
 This reads the sensor, calculates speed and distance travelled and publishes the values using ROS to output the data.
 
@@ -124,9 +122,23 @@ void loop() {
   }  
 
 	if (millis() - prev_time_stamp_info >= infoInterval) {  // provide an informational message 
-    sprintf (buffer, "right_speed sensor - meters_travelled: %f RPM: %f m/s: %f", meters_travelled, RPM, meters_per_second);
+    String message = "right_speed sensor - meters_travelled: " + String(meters_travelled, 2)
+                   + ", RPM: " + String(RPM, 2)
+                   + ",  m/s: " + String(meters_per_second, 2);
+    message.toCharArray(buffer, message.length() + 1);  
+  //  sprintf (buffer, "right_speed sensor - meters_travelled: %f RPM: %f m/s: %f", meters_travelled, RPM, meters_per_second);
     nh.loginfo(buffer);
 		prev_time_stamp_info = millis();
+
+/*
+    // Create a string containing the message data
+    String message = "right_speed sensor - meters_travelled: " + String(meters_travelled, 2)
+                   + ", RPM: " + String(RPM, 2)
+                   + ",  m/s: " + String(meters_per_second, 2);
+    message.toCharArray(buffer, message.length() + 1);
+    str_msg.data = buffer;
+    chatter_pub.publish(&str_msg);
+*/    
 	}
 	nh.spinOnce();
 	

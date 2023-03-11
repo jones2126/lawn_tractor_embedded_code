@@ -617,9 +617,9 @@ void steerVehicle()
 
 void throttleVehicle(){
   // for tuning purposes get the PID values from potentiometers
-  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 4);  
-  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .000005);
-  trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10);
+  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 300, 1200);  
+  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .00001);
+  trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10000);
   tranmissionLogicflag = 0;
 
   if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
@@ -644,20 +644,24 @@ void throttleVehicle(){
   {
       // actual_speed = (left_speed + right_speed) / 2.0;
       actual_speed = right_speed;  // just one wheel for testing on jacks
-      trans_pid_output = trans_computePID(actual_speed);      
+      trans_pid_output = trans_computePID(actual_speed);  
+      transmissionServoValue =  trans_pid_output;     
       //trans_pid.Compute();
       /*
       We use the PID output to compute a fraction of the available range that corresponds 
       to the current target speed, and add "fraction" to the neutral position to get the final PWM value.
       */
-      double range = transmissionFullForwardPos - transmissionNeutralPos;
+      //double range = transmissionFullForwardPos - transmissionNeutralPos;
       //double fraction = trans_pid_output / maxForwardSpeed;
-      fraction = trans_pid_output / maxForwardSpeed;
+      //fraction = trans_pid_output / maxForwardSpeed;
       //double fraction = (trans_output / (maxForwardSpeed / range));  //optional - 
-      transmissionServoValue = transmissionNeutralPos + (int)(range * fraction);
+      //transmissionServoValue = transmissionNeutralPos + (int)(range * fraction);
       if (transmissionServoValue > transmissionFullForwardPos) {
         transmissionServoValue = transmissionFullForwardPos;
       }
+      if (transmissionServoValue < transmissionNeutralPos) {
+        transmissionServoValue = transmissionNeutralPos;
+      }      
       tranmissionLogicflag = 2;
 /* 
 
@@ -704,7 +708,6 @@ double computePID(float inp)
 
 double trans_computePID(float trans_inp)
 {
-  // ref: https://www.teachmemicro.com/arduino-pid-control-tutorial/
   trans_currentTime = millis();                                          // get current time
   trans_elapsedTime = (double)(trans_currentTime - trans_previousTime);                                 // compute time elapsed from previous computation
   trans_error = linear_x - trans_inp;                                                       // determine error

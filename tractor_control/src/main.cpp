@@ -31,6 +31,7 @@ void sendOutgoingMsg();
 void handleIncomingMsg();
 void print_Info_messages();
 double computePID(float inp);
+double trans_computePID(float trans_inp);
 void steerVehicle();
 void throttleVehicle();
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max);
@@ -44,7 +45,7 @@ void check_LoRaRX();
 void left_speed_callback(const std_msgs::Float32& left_speed_msg);
 void right_speed_callback(const std_msgs::Float32& right_speed_msg);
 
-// radio related
+/////////////////////radio related variables///////////////////////
 float FREQUENCY = 915.0;                   // MHz - EU 433.5; US 915.0
 float BANDWIDTH = 125;                     // 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125, 250 and 500 kHz.
 uint8_t SPREADING_FACTOR = 10;             // 6 - 12; higher is slower; started at 7
@@ -92,7 +93,7 @@ const long readingInterval = 100;
 const long transmitInterval = 500;
 const long infoInterval = 2000;
 const long steerInterval = 50; // 100 10 HZ, 50 20Hz, 20 = 50 Hz
-const long throttleInterval = 1000;
+const long throttleInterval = 50;
 const long csvInterval = 200;
 unsigned long prev_time_reading = 0;
 unsigned long prev_time_xmit = 0;
@@ -119,7 +120,7 @@ float tolerance = 0.007; // 1% of 0.73
 const int motor_power_limit = 150;
 /////////////////////////////////////////////////////////////
 
-/////////////////// PID variables ///////////////////////
+/////////////////// steering PID variables ///////////////////////
 float kp = 268; 
 float ki = 0.0;
 float kd = 385; // 100 and 200 were OK; 300 slowed steering 385 seems ok; 3/9/23
@@ -130,6 +131,26 @@ float lastError;
 float output, setPoint;
 float cumError, rateError;
 ///////////////////////////////////////////////////////
+
+/////////////////// transmission / speed PID variables ///////////////////////
+float trans_kp = 0.0; 
+float trans_ki = 0.0;
+float trans_kd = 0.0; 
+unsigned long trans_currentTime, trans_previousTime;
+float trans_elapsedTime;
+float trans_error;
+float trans_lastError;
+float trans_pid_output, trans_setPoint;
+float trans_cumError, trans_rateError;
+
+
+double actual_speed;
+
+// Define the PID object
+//PID trans_pid(&actual_speed, &trans_pid_output, &linear_x, trans_Kp, trans_Ki, trans_Kd, DIRECT);
+
+///////////////////////////////////////////////////////
+
 
 ///////////////////////Inputs/outputs///////////////////////
 int transmissionPowerPin = 22;
@@ -165,43 +186,6 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #define row_7 54
 unsigned long prev_time_OLED = 0;
 const long OLEDInterval = 500;
-//////////////////////// variables for throttle/transmission ///////////////////////////////////
-// setup servo for throttle
-// Using “myservo.write(val);”  - 60=reverse; 73=neutral; 92=first
-//Servo transmissionServo; // create servo object to control a servo
-// Servo CytronServo;  // create servo object to control a servo
-// myservo.attach(transmissionSignalPin);  // attaches the servo on pin 9 to the servo object
-int transmissionNeutralPos = 256;
-// full_reverse and full_forward
-int transmissionFullReversePos = 230;  // represents ~-1.5 m/s
-int transmissionFullForwardPos = 315;  // represents ~+2.0 m/s
-int transmissionServoValue = transmissionNeutralPos; // neutral position
-int tranmissioPotValue = 0;                   // incoming throttle setting
-
-#define PWM_CHANNEL 0
-#define PWM_FREQ 50
-/*
-Decide on the desired PWM Resolution (aka duty cycle range) for example 8 Bits which gives you a duty
-cycle range [0 – 255]. While setting it to 10Bits, gives you a range of [ 0 – 1023 ]. Twelve (12) bits 
-provides 4095 positions to access.
-ref: https://deepbluembedded.com/esp32-pwm-tutorial-examples-analogwrite-arduino/
-*/
-#define PWM_RESOLUTION 12
-#define PWM_MAX 4095  // (2 ^ PWM_RESOLUTION) - 1 - needs to coincide with PWM_RESOLUTION
-
-// Define PID constants
-double trans_Kp = 0.0;
-double trans_Ki = 0.0;
-double trans_Kd = 0.0;
-
-// Define PID input and output variables
-double trans_input, trans_output, trans_setpoint;
-
-// Define the PID object
-PID trans_pid(&trans_input, &trans_output, &trans_setpoint, trans_Kp, trans_Ki, trans_Kd, DIRECT);
-
-// Define the left and right wheel speeds
-float left_speed, right_speed;
 
 /////////// ROS Variables /////////////////////
 
@@ -213,7 +197,8 @@ ros::Publisher chatter_pub("chatter", &str_msg);
 unsigned long prev_cmd_vel_time = 0;
 bool safety_flag_cmd_vel = false; 
 
-float linear_x, angular_z;
+//float linear_x, angular_z;
+double linear_x, angular_z;  // switched to double because that is what the PID object expects
 //char buf[200];
 char charBuf[150];
 const long chatterInterval = 2000;
@@ -221,17 +206,41 @@ unsigned long prev_time_chatter = 0;
 const long cmd_velInterval = 500;
 unsigned long prev_time_cmdvel = 0;
 
+
+//////////////////////// transmission control variables ///////////////////////////////////
+int transmissionNeutralPos = 256;
+int transmissionFullReversePos = 230;  // represents ~-1.5 m/s
+int transmissionFullForwardPos = 315;  // represents ~+2.0 m/s
+int transmissionServoValue = transmissionNeutralPos; // neutral position
+int tranmissioPotValue = 0;                   // incoming throttle setting
+float maxForwardSpeed = 1.8; // m/s
+float maxReverseSpeed = 1.0; // m/s
+
+#define PWM_CHANNEL 0
+#define PWM_FREQ 50
+int tranmissionLogicflag = 0; 
+double fraction = 0;
+/*
+Decide on the desired PWM Resolution (aka duty cycle range) for example 8 Bits which gives you a duty
+cycle range [0 – 255]. While setting it to 10Bits, gives you a range of [ 0 – 1023 ]. Twelve (12) bits 
+provides 4095 positions to access.
+ref: https://deepbluembedded.com/esp32-pwm-tutorial-examples-analogwrite-arduino/
+*/
+#define PWM_RESOLUTION 12
+#define PWM_MAX 4095  // (2 ^ PWM_RESOLUTION) - 1 - needs to coincide with PWM_RESOLUTION  - I'm not using this
+
+
+
+// Define the left and right wheel speeds
+float left_speed, right_speed;
+
+
+
 void chatter()
 {
   if (millis() - prev_time_chatter > chatterInterval)
   {
     prev_time_chatter = millis();
-/*    
-    sprintf(buf, "linear x: %.2f, angular z: %.2f, steer: %.2f, trans: %d\r\nmode: %d, LoRa: %d, cmd_vel: %d", 
-      linear_x, angular_z, setPoint, transmissionServoValue, RadioControlData.control_mode, safety_flag_LoRaRx, safety_flag_cmd_vel);
-    str_msg.data = buf;
-*/
-    // Create a string containing the message data
     String message = "1: lnr.x: " + String(linear_x, 2)
                    + ", ang.z: " + String(angular_z, 2)
                    + ", steer: " + String(setPoint, 2) 
@@ -242,19 +251,31 @@ void chatter()
     delay(5);
     message = "";
     message =      "2: mode: " + String(RadioControlData.control_mode)
-                   + ", RSSI:" + radio.getRSSI()   
-                    + ", Kd " + String(kd, 2)                                  
-                    + ", LoRa: " + String(safety_flag_LoRaRx)
+//                   + ", RSSI:" + radio.getRSSI()   
+                    + ", t_kp " + String(trans_kp, 2)    
+                    + ", t_ki " + String(trans_ki, 8)   
+                    + ", t_kd " + String(trans_kd, 3)                                                                         
+//                    + ", LoRa: " + String(safety_flag_LoRaRx)
                     + ", cmd_vel: " + String(safety_flag_cmd_vel);
-    //char charBuf[message.length() + 1];      // Convert the string to a character array
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);
+    delay(5);
+    message = "";
+    message =      "3: Logic: " + String(tranmissionLogicflag)
+                   + ", Servo:" + transmissionServoValue
+                   + ", pid output " + String(trans_pid_output, 2);
+                    + ", fraction " + String(fraction, 2);
+    message.toCharArray(charBuf, message.length() + 1);
+    str_msg.data = charBuf;
+    chatter_pub.publish(&str_msg);    
+    // PID trans_pid(&actual_speed, &trans_pid_output, &linear_x, trans_Kp, trans_Ki, trans_Kd, DIRECT);
   }
 }
 
 void cmd_vel(const geometry_msgs::Twist &vel){
   linear_x = vel.linear.x;
+  //  target_speed = cmd_vel_msg.data;
   angular_z = vel.angular.z;
   prev_time_cmdvel = millis();
 }
@@ -287,19 +308,9 @@ void setup(){
 }
 void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
-/*  
-  ESP32PWM::allocateTimer(0); // Allow allocation of all timers
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-  transmissionServo.setPeriodHertz(50);                       // standard 50 hz servo
-  transmissionServo.attach(transmissionSignalPin, 500, 2400); // attaches the servo on pin 18 to the servo object
-*/
-
   digitalWrite(transmissionPowerPin, LOW);              // make sure power is on to transmission servo  
   ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);     // Configure the PWM timer, channel 0, freq 50 Hz and 16 for ESP32 resolution
   ledcAttachPin(transmissionSignalPin, PWM_CHANNEL);    // Attach the PWM channel to the output pin
-
 }
 void loop(){
   unsigned long currentMillis = millis();
@@ -541,7 +552,7 @@ void steerVehicle()
   */
 
   // kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);  // no longer using manual input 3/9/23
-  ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
+  //ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
   //kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
 
   if ((RadioControlData.control_mode == 2) && safety_flag_LoRaRx && safety_flag_cmd_vel)
@@ -603,64 +614,77 @@ void steerVehicle()
   }
   prev_time_steer = millis();
 } // end of steerVehicle
-void throttleVehicle()
-{
-  /*
-      Physical  source for    pot value    mode
-      position  control                    value
 
-      top       cmd_vel          0          2
-      middle    manual        4095          1
-      bottom    set to 0     ~1890          0
-                for safety
-
-
-  */
+void throttleVehicle(){
+  // for tuning purposes get the PID values from potentiometers
+  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 4);  
+  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .000005);
+  trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10);
+  tranmissionLogicflag = 0;
 
   if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    transmissionServoValue = map(linear_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
-    transmissionServoValue = constrain(transmissionServoValue, transmissionFullReversePos, transmissionNeutralPos);
-
-  /*
-  
-    // Calculate the actual speed
-  float actual_speed = (left_speed + right_speed) / 2.0;
-
-  // Compute the PID output for the throttle
-  throttle_pid.setInput(actual_speed);
-  throttle_pid.setSetpoint(target_speed);
-  throttle_pid.compute();
-
-    // Send the output to the transmission servo
-  transmissionServo.write(transmissionServoValue + trans_output);
-  */
+    //transmissionServoValue = map(linear_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
+    //transmissionServoValue = constrain(transmissionServoValue, transmissionFullReversePos, transmissionNeutralPos);
+    transmissionServoValue = transmissionNeutralPos;  // until forward motion is working
+    tranmissionLogicflag = 1;
+    /*
+      actual_speed = (left_speed + right_speed) / 2.0;
+      trans_pid.Compute();
+      double range =  transmissionNeutralPos - transmissionFullReversePos;
+      double fraction = trans_pid_output / maxReverseSpeed;
+      transmissionServoValue = transmissionNeutralPos - (int)(range * fraction);
+      if (transmissionServoValue < transmissionFullReversePos) {
+        transmissionServoValue = transmissionFullReversePos;
+      }
+    */
 
   }
   else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-    transmissionServoValue = map(linear_x, 0, 1.7, transmissionNeutralPos, transmissionFullForwardPos);
-    transmissionServoValue = constrain(transmissionServoValue, transmissionNeutralPos, transmissionFullForwardPos);
+      // actual_speed = (left_speed + right_speed) / 2.0;
+      actual_speed = right_speed;  // just one wheel for testing on jacks
+      trans_pid_output = trans_computePID(actual_speed);      
+      //trans_pid.Compute();
+      /*
+      We use the PID output to compute a fraction of the available range that corresponds 
+      to the current target speed, and add "fraction" to the neutral position to get the final PWM value.
+      */
+      double range = transmissionFullForwardPos - transmissionNeutralPos;
+      //double fraction = trans_pid_output / maxForwardSpeed;
+      fraction = trans_pid_output / maxForwardSpeed;
+      //double fraction = (trans_output / (maxForwardSpeed / range));  //optional - 
+      transmissionServoValue = transmissionNeutralPos + (int)(range * fraction);
+      if (transmissionServoValue > transmissionFullForwardPos) {
+        transmissionServoValue = transmissionFullForwardPos;
+      }
+      tranmissionLogicflag = 2;
+/* 
+
+      need to get PID values from potentiometers
+
+
+In Matt's PID the error was target_speed - actual speed
+  err_value = linear_vel_x - raw_vel_msg.twist.linear.x;
+
+  throttle_pid.compute();
+  transmissionServo.write(transmissionServoValue + trans_output);     // Send the output to the transmission servo
+  */
+
   }
   else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx)
   {
     transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos); // - 60=reverse; 73=neutral; 92=first
+    tranmissionLogicflag = 3;
   }
   else
   {
     transmissionServoValue = transmissionNeutralPos;
+    tranmissionLogicflag = 4;
   }
 
-
-
-  // transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);    // - 60=reverse; 73=neutral; 92=first
-  //digitalWrite(transmissionPowerPin, LOW);         // turn power on to transmission servo
-  //transmissionServo.write(transmissionServoValue); // sets the servo position according to the scaled value
-                                                   // Serial.print("pot val-original: "); Serial.print(tranmissioPotValue);
-
-  //pulseWidth = mapfloat(analogRead(pulseWidth_pot_pin), 0, 4095, 200, 300);
   digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
-  ledcWrite(PWM_CHANNEL, transmissionServoValue);
+  ledcWrite(PWM_CHANNEL, transmissionServoValue);       // write PWM value to transmission servo
   prev_time_throttle = millis();
 }
 
@@ -677,6 +701,21 @@ double computePID(float inp)
   previousTime = currentTime;                                      // remember current time
   return out;                                                      // have function return the PID output
 }
+
+double trans_computePID(float trans_inp)
+{
+  // ref: https://www.teachmemicro.com/arduino-pid-control-tutorial/
+  trans_currentTime = millis();                                          // get current time
+  trans_elapsedTime = (double)(trans_currentTime - trans_previousTime);                                 // compute time elapsed from previous computation
+  trans_error = linear_x - trans_inp;                                                       // determine error
+  trans_cumError += trans_error * trans_elapsedTime;                                              // compute integral
+  trans_rateError = (trans_error - trans_lastError) / trans_elapsedTime;                          // compute derivative
+  float out = ((trans_kp * trans_error) + (trans_ki * trans_cumError) + (trans_kd * trans_rateError));  // PID output
+  trans_lastError = trans_error;                                                                  // remember current error
+  trans_previousTime = trans_currentTime;                                                               // remember current time
+  return out;                                                                                     // have function return the PID output
+}
+
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
 {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;

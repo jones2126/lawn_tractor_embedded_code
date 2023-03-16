@@ -9,9 +9,15 @@ this board should trigger a relay to stops the motor on the this tractor.
 You will see below this program uses the RadioLib SX127x (i.e. jgromes/RadioLib@^5.3.0) library to manage the LoRa communications
 ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x---lora-modem  or https://jgromes.github.io/RadioLib/
 
+THIS IS WORK IN PROCESS - I HAVE TRIED MULTIPLE WAYS TO CONTROL THE ROBOT LINEAR.X, BUT AM STILL NOT SATISFIED
+
+to do:
+1. Change the USB power relay so the TTGO board has to be operational to provide power to the ignition
+
 
 */
 
+///////////////////////  functions defined below //////////////////////////////////
 #include <ros.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
@@ -23,8 +29,8 @@ ref: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x-
 #include <driver/ledc.h>
 #include <Adafruit_SSD1306.h>
 
+///////////////////////  functions defined below //////////////////////////////////
 // functions below loop() - required to tell VSCode compiler to look for them below.  Not required when using Arduino IDE
-// void startSerial();
 void InitLoRa();
 void getTractorData();
 void sendOutgoingMsg();
@@ -44,6 +50,37 @@ void ROSsetup();
 void check_LoRaRX();
 void left_speed_callback(const std_msgs::Float32& left_speed_msg);
 void right_speed_callback(const std_msgs::Float32& right_speed_msg);
+void velocityControl();
+void velocityControl2();
+int calculatePWM(double target_speed);
+
+///////////////////////  PID Class used for steering and speed control //////////////////////////////////
+class PIDController {
+public:
+    PIDController(double Kp, double Ki, double Kd, double dt)
+        : Kp_(Kp), Ki_(Ki), Kd_(Kd), dt_(dt), last_error_(0), integral_(0) {}
+    
+    double calculate(double set_point, double process_variable) {
+        double error = set_point - process_variable;
+        double derivative = (error - last_error_) / dt_;
+        integral_ += error * dt_;
+        double output = Kp_ * error + Ki_ * integral_ + Kd_ * derivative;
+        last_error_ = error;
+        return output;
+    }
+    void resetIntegral() {integral_ = 0;}
+    void setKp(double Kp) {Kp_ = Kp;}
+    void setKi(double Ki) {Ki_ = Ki;}
+    void setKd(double Kd) {Kd_ = Kd;}    
+
+private:
+    double Kp_;
+    double Ki_;
+    double Kd_;
+    double dt_;
+    double last_error_;
+    double integral_;
+};  // end of class PIDController
 
 /////////////////////radio related variables///////////////////////
 float FREQUENCY = 915.0;                   // MHz - EU 433.5; US 915.0
@@ -89,11 +126,12 @@ uint8_t TractorData_message_len = sizeof(TractorData);
 uint8_t tx_TractorData_buf[sizeof(TractorData)] = {0};
 
 /////////////////////Loop Timing variables///////////////////////
-const long readingInterval = 100;
+const long readingInterval = 100;  // 500 2 Hz, 100 10 Hz, 50 20 Hz, 20 50 Hz
 const long transmitInterval = 500;
 const long infoInterval = 2000;
-const long steerInterval = 50; // 100 10 HZ, 50 20Hz, 20 = 50 Hz
-const long throttleInterval = 50;
+const long steerInterval = 50; 
+const long throttleInterval = 250;
+//const long throttleInterval = 100;
 const long csvInterval = 200;
 unsigned long prev_time_reading = 0;
 unsigned long prev_time_xmit = 0;
@@ -101,9 +139,10 @@ unsigned long prev_time_printinfo = 0;
 unsigned long prev_time_steer = 0;
 unsigned long prev_time_throttle = 0;
 unsigned long prev_time_csv = 0;
-/////////////////////////////////////////////////////////////////
+unsigned long prev_speed_check = 0;
+unsigned long speed_check_Interval = 1000;
 
-///////////////////Steering variables///////////////////////
+/////////////////// Steering variables ///////////////////////
 // pot values left: straight:1880; right:
 float safety_margin_pot = 300;                   // reduce this once I complete field testing
 float left_limit_pot = 3245 - safety_margin_pot; // the actual extreme limit is 3245
@@ -118,7 +157,6 @@ float steer_effort_float = 0;
 int steer_effort = 0;
 float tolerance = 0.007; // 1% of 0.73
 const int motor_power_limit = 150;
-/////////////////////////////////////////////////////////////
 
 /////////////////// steering PID variables ///////////////////////
 float kp = 268; 
@@ -130,27 +168,6 @@ float error;
 float lastError;
 float output, setPoint;
 float cumError, rateError;
-///////////////////////////////////////////////////////
-
-/////////////////// transmission / speed PID variables ///////////////////////
-float trans_kp = 0.0; 
-float trans_ki = 0.0;
-float trans_kd = 0.0; 
-unsigned long trans_currentTime, trans_previousTime;
-float trans_elapsedTime;
-float trans_error;
-float trans_lastError;
-float trans_pid_output, trans_setPoint;
-float trans_cumError, trans_rateError;
-
-
-double actual_speed;
-
-// Define the PID object
-//PID trans_pid(&actual_speed, &trans_pid_output, &linear_x, trans_Kp, trans_Ki, trans_Kd, DIRECT);
-
-///////////////////////////////////////////////////////
-
 
 ///////////////////////Inputs/outputs///////////////////////
 int transmissionPowerPin = 22;
@@ -158,8 +175,8 @@ int estopRelay_pin = 23;
 int led = 2;
 int transmissionSignalPin = 17;
 int mode_pin = 39;         // top on the expansion board
-int steering_pot_pin = 37; // third on the expansion board
 int throttle_pot_pin = 36; // second on the expansion board
+int steering_pot_pin = 37; // third on the expansion board
 int steer_angle_pin = 38;  // pin for steer angle sensor - top on the expansion board
 int PWMPin = 25;
 int DIRPin = 12;
@@ -167,7 +184,6 @@ int ledState = LOW; // ledState used to set the LED
 int test_sw = 0;    // turn the wheel all the way to the left before starting this test
 unsigned long test_start_time = 0;
 float test_duration = 0;
-///////////////////////////////////////////////////////////
 
 /////////////////////OLED variables///////////////////////
 // OLED definitions
@@ -187,30 +203,45 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 unsigned long prev_time_OLED = 0;
 const long OLEDInterval = 500;
 
-/////////// ROS Variables /////////////////////
+/////////// Kalman filter parameters /////////////////////
+float Q = 0.05; // Process noise
+float R = 0.5;  // Measurement noise
+float P = 1.0;  // Estimation error
+float K;        // Kalman gain
+float Xhat;     // Estimated value
+float Xhat_prev = 0; // Previous estimated value
+float X_meas;   // Measured value
 
-// ros setup
+/////////// ROS setup and variables /////////////////////
 ros::NodeHandle nh;
 std_msgs::String str_msg;
 ros::Publisher chatter_pub("chatter", &str_msg);
 
 unsigned long prev_cmd_vel_time = 0;
 bool safety_flag_cmd_vel = false; 
-
-//float linear_x, angular_z;
-double linear_x, angular_z;  // switched to double because that is what the PID object expects
-//char buf[200];
+float linear_x, angular_z; 
 char charBuf[150];
 const long chatterInterval = 2000;
 unsigned long prev_time_chatter = 0;
 const long cmd_velInterval = 500;
 unsigned long prev_time_cmdvel = 0;
 
+/////////////////// transmission / speed PID and control variables ///////////////////////
+// Speeds in m/s corresponding to each PWM value
+float speedTable[] = {0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 0.9, 1.2, 1.5, 1.8, 1.82, 1.85, 1.87, 1.9};
+/* 
+This table is being used to correspond to PWM values from 285 to 300.
+*/
 
-//////////////////////// transmission control variables ///////////////////////////////////
-int transmissionNeutralPos = 256;
+int servoMin = 265; // Minimum PWM value for servo control
+int servoMax = 300; // Maximum PWM value for servo control
+bool pwm_set = false;
+int pwm = servoMin;
 int transmissionFullReversePos = 230;  // represents ~-1.5 m/s
-int transmissionFullForwardPos = 315;  // represents ~+2.0 m/s
+int transmissionFirstReversePos = 240; // untested
+int transmissionNeutralPos = 256;
+int transmissionFirstForwardPos = 275;
+int transmissionFullForwardPos = 300;  // represents ~+2.0 m/s  // started at 315 but unrestrained speed got to 4 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 int tranmissioPotValue = 0;                   // incoming throttle setting
 float maxForwardSpeed = 1.8; // m/s
@@ -228,33 +259,59 @@ ref: https://deepbluembedded.com/esp32-pwm-tutorial-examples-analogwrite-arduino
 */
 #define PWM_RESOLUTION 12
 #define PWM_MAX 4095  // (2 ^ PWM_RESOLUTION) - 1 - needs to coincide with PWM_RESOLUTION  - I'm not using this
+float left_speed, right_speed;  // Define the left and right wheel speeds
 
+unsigned long trans_currentTime, trans_previousTime;
+float trans_elapsedTime;
+float trans_error;
+float trans_lastError;
+float trans_setPoint;
+float trans_cumError, trans_rateError;
+double actual_speed, trans_pid_output;
 
+// Set up the PID controller
+float trans_kp = 100.0; 
+float trans_ki = 0.0;
+float trans_kd = 0.0; 
+double trans_dt = throttleInterval;
+PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
 
-// Define the left and right wheel speeds
-float left_speed, right_speed;
+///////////////////////////// Velocity2 variables //////////////////////
+int Ki_count = 0;
+int Ki_timeout = 20;
+//int Kd = 0;
+//int last_value = 0;
+double err_last = 0;
+double err_value_Kp = 0;
+double error_sum = 0;
+//double err_value_Kd = 0;
+double err_value = 0;
+int vel_effort = 0; 
+int vel_eff_sum = 0; 
+int vel_start = 0;
+//int vel_eff_target = 0;
+//int vel_neutral = 1550;
 
-
-
-void chatter()
-{
+//////////////////////// output debug statements ///////////////////////////////////
+void chatter(){
   if (millis() - prev_time_chatter > chatterInterval)
   {
     prev_time_chatter = millis();
-    String message = "1: lnr.x: " + String(linear_x, 2)
+    String message = "1: lnr.x: " + String(linear_x, 2)  //pwm_set
                    + ", ang.z: " + String(angular_z, 2)
-                   + ", steer: " + String(setPoint, 2) 
-                   + ", trans: " + String(transmissionServoValue);
+                  + ", pwm_set: " + pwm_set
+                   + ", steer: " + String(setPoint, 2);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);
     delay(5);
     message = "";
-    message =      "2: mode: " + String(RadioControlData.control_mode)
+    message =      "2: mode: " + String(RadioControlData.control_mode) //actual_speed
+                     + ", act speed:" + String(actual_speed, 3)
 //                   + ", RSSI:" + radio.getRSSI()   
-                    + ", t_kp " + String(trans_kp, 2)    
-                    + ", t_ki " + String(trans_ki, 8)   
-                    + ", t_kd " + String(trans_kd, 3)                                                                         
+                    + ", kp " + String(trans_kp, 2)    
+                    + ", ki " + String(trans_ki, 6)   
+//                    + ", t_kd " + String(trans_kd, 3)                                                                         
 //                    + ", LoRa: " + String(safety_flag_LoRaRx)
                     + ", cmd_vel: " + String(safety_flag_cmd_vel);
     message.toCharArray(charBuf, message.length() + 1);
@@ -264,8 +321,8 @@ void chatter()
     message = "";
     message =      "3: Logic: " + String(tranmissionLogicflag)
                    + ", Servo:" + transmissionServoValue
-                   + ", pid output " + String(trans_pid_output, 2);
-                    + ", fraction " + String(fraction, 2);
+                   + ", vel_effort:" + vel_effort;
+                  // + ", pid output " + String(trans_pid_output, 2);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);    
@@ -279,6 +336,7 @@ void cmd_vel(const geometry_msgs::Twist &vel){
   angular_z = vel.angular.z;
   prev_time_cmdvel = millis();
 }
+
 void check_cmdvel(){
   if (millis() - prev_time_cmdvel > cmd_velInterval){
     linear_x = 0;
@@ -291,6 +349,8 @@ void check_cmdvel(){
 }
 
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
+ros::Subscriber<std_msgs::Float32> left_speed_sub("left_speed", &left_speed_callback);
+ros::Subscriber<std_msgs::Float32> right_speed_sub("right_speed", &right_speed_callback);
 
 void setup(){
   pinMode(steer_angle_pin, INPUT);
@@ -416,15 +476,17 @@ void InitLoRa()
       ;
   }
 
-  delay(10000);
+  delay(3000);
 }
 
 void ROSsetup()
 {
   nh.initNode();
   nh.subscribe(cmd_vel_sub);
+  nh.subscribe(left_speed_sub);
+  nh.subscribe(right_speed_sub);
   nh.advertise(chatter_pub);
-  nh.loginfo("Hello, ROS!"); // enable ROS logging mechanism
+  nh.loginfo("Tractor_Control Program, ROS!"); // enable ROS logging mechanism
 }
 
 void getTractorData()
@@ -496,62 +558,11 @@ void handleIncomingMsg()
     safety_flag_LoRaRx = false;
   }
 }
-/*
-void print_Info_messages()
-{
-  printf("\n");
-  // Serial.println(F(" success!, sent the following data..."));
-  // Serial.print("speed: "); Serial.print(TractorData.speed);
-  // Serial.print("heading: "); Serial.print(TractorData.heading);
-  // Serial.print("voltage: "); Serial.print(TractorData.voltage);
-  // Serial.print("Tractr ctr: "); Serial.print(TractorData.counter);
-  // Serial.print(", RC ctr: "); Serial.print(RadioControlData.counter);
-  // Serial.print(", RC estop: "); Serial.print(RadioControlData.estop);
-  //  print measured data rate
-  // Serial.print(F(", BPS "));
-  // Serial.print(radio.getDataRate());
-  // Serial.print(F(" bps"));
-  // Serial.println(F("packet received!"));
-  //  print the RSSI (Received Signal Strength Indicator) of the last received packet
-  // Serial.print(F(", RSSI: "));  Serial.print(radio.getRSSI());
-  // Serial.print(F(", SNR: "));  Serial.print(radio.getSNR());
-  // Serial.print(F(", dB"));
-  // Serial.print(F(", Freq error: ")); Serial.print(radio.getFrequencyError());
-  // Serial.print(F(", Hz"));
-  Serial.print(", mode_sw: ");
-  Serial.print(RadioControlData.control_mode);
-  Serial.print(", steering: ");
-  Serial.print(angular_vel_z);
-  Serial.print(", throttle: ");
-  Serial.print(linear_x);
-  // Serial.print(", throttle: "); Serial.print(RadioControlData.throttle_val);
-  // Serial.print(", throttle-mapped: "); Serial.print(transmissionServoValue);
-  // Serial.print(", press_norm: "); Serial.print(RadioControlData.press_norm);
-  // Serial.print(", press_hg: "); Serial.print(RadioControlData.press_hg);
-  // Serial.print(", temp: "); Serial.print(RadioControlData.temp);
-  // Serial.print(", setPoint: "); Serial.print(setPoint);
-  // Serial.print(", steering_actual_angle: "); Serial.print(steering_actual_angle);
-  // Serial.print(", error: "); Serial.print(error);
-  // Serial.print(", steer effort: "); Serial.print(steer_effort);
-  Serial.print(", Kp: ");
-  Serial.print(kp, 2);
-  Serial.print(", Ki: ");
-  Serial.print(ki, 5);
-  Serial.print(", Kd: ");
-  Serial.print(kd, 2);
-  // Serial.print(", steer pot: "); Serial.print(analogRead(steer_angle_pin));
-  // Serial.print(", Kp pot: "); Serial.print(analogRead(kp_pot_pin));
-  printf("\n");
-}
-*/
+
 void steerVehicle()
 {
-  /*
-  Although I have tested the PID I still have the external potentiometers connected in order
-  to continue tuning the PID.
-  */
 
-  // kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);  // no longer using manual input 3/9/23
+  //kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);  // no longer using manual input 3/9/23
   //ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
   //kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
 
@@ -567,9 +578,6 @@ void steerVehicle()
   {
     setPoint = 0;
   }
-
-  // Serial.print("e: ");
-  // Serial.println(error);
   steering_actual_pot = analogRead(steer_angle_pin);
   steering_actual_angle = mapfloat(steering_actual_pot, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
   steer_effort_float = computePID(steering_actual_angle);
@@ -577,39 +585,24 @@ void steerVehicle()
   /*  Safety clamp:  The max_power_limit could be as high as 255 which
    would deliver 12+ volts to the steer motor.  I have reduced the highest setting that allows the wheels
    to be moved easily while sitting on concrete (e.g. motor_power_limit = 150 )  */
-  if (steer_effort < (motor_power_limit * -1))
-  {
+  if (steer_effort < (motor_power_limit * -1)){
     steer_effort = (motor_power_limit * -1);
-  } // clamp the values of steer_effort
-  if (steer_effort > motor_power_limit)
-  {
+    } 
+  if (steer_effort > motor_power_limit){
     steer_effort = motor_power_limit;
-  } // motor_power_limit
+    }
 
-  if (error > tolerance)
-  {
-    // Serial.print("e-r: ");
-    // Serial.print(error);
-    // Serial.print("s-r: ");
-    // Serial.println(steer_effort);
+  if (error > tolerance){
     digitalWrite(DIRPin, HIGH); // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, steer_effort);
-  }
-
-  else if (error < (tolerance * -1))
-  {
-    // Serial.print("e-l: ");
-    // Serial.print(error);
-    // Serial.print("s-l: ");
-    // Serial.println(steer_effort);
+    }
+  else if (error < (tolerance * -1)){
     digitalWrite(DIRPin, LOW); // steer left - channel A led is lit; black wire (-) to motor; negative voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, abs(steer_effort));
-  }
-  else
-  {
-    steer_effort = 0;
+    } else {
+        steer_effort = 0;
     // analogWrite(PWMPin, steer_effort);       // Turn the motor off
   }
   prev_time_steer = millis();
@@ -617,10 +610,17 @@ void steerVehicle()
 
 void throttleVehicle(){
   // for tuning purposes get the PID values from potentiometers
-  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 300, 1200);  
-  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .00001);
+  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 200); 
+  controller_trans.setKp(trans_kp);
+  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .0001);
+  // trans_ki = .01;
+  controller_trans.setKi(trans_ki);  
   trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10000);
+  //trans_kd = 15;
+  controller_trans.setKd(trans_kd);
   tranmissionLogicflag = 0;
+  // actual_speed = (left_speed + right_speed) / 2.0;
+  actual_speed = right_speed;  // just one wheel for testing on jacks  
 
   if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
@@ -630,10 +630,8 @@ void throttleVehicle(){
     tranmissionLogicflag = 1;
     /*
       actual_speed = (left_speed + right_speed) / 2.0;
-      trans_pid.Compute();
-      double range =  transmissionNeutralPos - transmissionFullReversePos;
-      double fraction = trans_pid_output / maxReverseSpeed;
-      transmissionServoValue = transmissionNeutralPos - (int)(range * fraction);
+      double trans_pid_output = controller_trans.calculate(linear_x, actual_speed);
+      transmissionServoValue =  transmissionFirstReversePos - trans_pid_output;  
       if (transmissionServoValue < transmissionFullReversePos) {
         transmissionServoValue = transmissionFullReversePos;
       }
@@ -642,39 +640,18 @@ void throttleVehicle(){
   }
   else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
-      // actual_speed = (left_speed + right_speed) / 2.0;
-      actual_speed = right_speed;  // just one wheel for testing on jacks
-      trans_pid_output = trans_computePID(actual_speed);  
-      transmissionServoValue =  trans_pid_output;     
-      //trans_pid.Compute();
-      /*
-      We use the PID output to compute a fraction of the available range that corresponds 
-      to the current target speed, and add "fraction" to the neutral position to get the final PWM value.
-      */
-      //double range = transmissionFullForwardPos - transmissionNeutralPos;
-      //double fraction = trans_pid_output / maxForwardSpeed;
-      //fraction = trans_pid_output / maxForwardSpeed;
-      //double fraction = (trans_output / (maxForwardSpeed / range));  //optional - 
-      //transmissionServoValue = transmissionNeutralPos + (int)(range * fraction);
+
+      //velocityControl();
+      velocityControl2();
+      //trans_pid_output = controller_trans.calculate(linear_x, actual_speed);
+      //transmissionServoValue =  transmissionFirstForwardPos + trans_pid_output;   
       if (transmissionServoValue > transmissionFullForwardPos) {
         transmissionServoValue = transmissionFullForwardPos;
       }
       if (transmissionServoValue < transmissionNeutralPos) {
         transmissionServoValue = transmissionNeutralPos;
       }      
-      tranmissionLogicflag = 2;
-/* 
-
-      need to get PID values from potentiometers
-
-
-In Matt's PID the error was target_speed - actual speed
-  err_value = linear_vel_x - raw_vel_msg.twist.linear.x;
-
-  throttle_pid.compute();
-  transmissionServo.write(transmissionServoValue + trans_output);     // Send the output to the transmission servo
-  */
-
+      //tranmissionLogicflag = 2;
   }
   else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx)
   {
@@ -703,7 +680,7 @@ double computePID(float inp)
   float out = ((kp * error) + (ki * cumError) + (kd * rateError)); // PID output
   lastError = error;                                               // remember current error
   previousTime = currentTime;                                      // remember current time
-  return out;                                                      // have function return the PID output
+  return out;                                                    // have function return the PID output
 }
 
 double trans_computePID(float trans_inp)
@@ -793,20 +770,7 @@ void displayOLED()
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
 }
-/*
-void createCSV()
-{
 
-  currentTime, steering_actual_angle, setPoint, kp, ki, kd
-
-  Serial.print(", Kp: ");
-  Serial.print(kp, 2);
-  Serial.print(", Ki: ");
-  Serial.print(ki, 5);
-  Serial.print(", Kd: ");
-  Serial.print(kd, 2);
-}
-*/
 void check_LoRaRX(){
   if (millis() - lastLoraRxTime > minlastLoraRx){
     safety_flag_LoRaRx = false;
@@ -814,14 +778,79 @@ void check_LoRaRX(){
     safety_flag_LoRaRx = true;
   }
 }
-void left_speed_callback(const std_msgs::Float32& left_speed_msg)
-{
-  // Set the left wheel speed from the left_speed message
+
+void left_speed_callback(const std_msgs::Float32& left_speed_msg){
   left_speed = left_speed_msg.data;
 }
 
-void right_speed_callback(const std_msgs::Float32& right_speed_msg)
-{
-  // Set the right wheel speed from the right_speed message
+void right_speed_callback(const std_msgs::Float32& right_speed_msg){
   right_speed = right_speed_msg.data;
 }
+
+void velocityControl(){
+    if (pwm_set) {
+        if (actual_speed < linear_x) {
+            transmissionServoValue = transmissionServoValue + 1;
+            //transmissionServoValue = constrain(pwm, servoMin, servoMax);
+            if (transmissionServoValue > servoMax){
+                transmissionServoValue = servoMax;
+            }
+            tranmissionLogicflag = 5;
+            }
+        if (actual_speed > linear_x) {
+            transmissionServoValue = transmissionServoValue - 1;
+            //transmissionServoValue = constrain(pwm, servoMin, servoMax);
+            if (transmissionServoValue < servoMin){
+                transmissionServoValue = servoMin;
+            }            
+            tranmissionLogicflag = 6;
+            }
+    } else {
+
+        for (int i = 0; i < sizeof(speedTable)/sizeof(speedTable[0]); i++) {
+            tranmissionLogicflag = 7;
+            if (linear_x <= speedTable[i]) {
+                transmissionServoValue = servoMin + i;
+                pwm_set = true;
+                tranmissionLogicflag = 8;
+                break;
+                }
+            }
+    }
+}
+
+
+void velocityControl2(){
+  tranmissionLogicflag = 9;
+  if (linear_x > .05)
+  {
+    vel_start = transmissionFirstForwardPos;
+  }
+  else if (linear_x < -.05)
+  {
+    vel_start = transmissionFirstReversePos;
+  }
+  else
+  {
+    vel_start = transmissionNeutralPos;
+    vel_eff_sum = 0;
+  }
+  err_value = linear_x - actual_speed;
+  err_value_Kp = err_value * trans_kp;
+  err_last = err_last - err_value;
+  error_sum = error_sum + err_value;
+  vel_effort = error_sum * trans_ki;
+  transmissionServoValue = vel_effort + vel_start;
+  // transmissionServoValue =  vel_effort + vel_start + 1550;  this was the active statement Matt had
+  // transmissionServoValue = transmissionServoValue + err_value_Kd;   this was commented out
+  transmissionServoValue = transmissionServoValue + err_value_Kp;
+  // Add P and D
+  // vel_effort = vel_effort + err_value_Kp + err_value_Kd;
+  Ki_count++;
+  if (Ki_count > Ki_timeout)
+  {
+    Ki_count = 0;
+    error_sum = 0;
+  }
+}
+

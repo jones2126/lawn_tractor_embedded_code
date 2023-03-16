@@ -277,7 +277,7 @@ double trans_dt = throttleInterval;
 PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
 
 ///////////////////////////// Velocity2 variables //////////////////////
-int Ki_count = 0;
+int Ki_count = 0; 
 int Ki_timeout = 20;
 //int Kd = 0;
 //int last_value = 0;

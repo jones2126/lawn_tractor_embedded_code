@@ -102,7 +102,7 @@ void loop() {
     position_movement = bitshift_pos_delta >> 2; //BitshiftRight 2 bits
     rotational_position += position_movement; // Update the absolute position values. (Position of this encoder since CPU reset.) 
     meters_travelled_prev = meters_travelled;
-    meters_travelled = ((rotational_position / AS5048B_RESOLUTION) * wheel_circumfrence);
+    meters_travelled = (((rotational_position / AS5048B_RESOLUTION) * wheel_circumfrence))*-1;  // the negative one is needed because the sensor gears flow in reverse on the left side
     time_traveled = millis() - prev_time_poll_AS5048B;
     revolutions = (meters_travelled - meters_travelled_prev)/wheel_circumfrence;
     time_traveled = time_traveled / 1000;  // convert time travelled which is in millis to seconds  
@@ -129,6 +129,5 @@ void loop() {
     nh.loginfo(buffer);
 		prev_time_stamp_info = millis();
 	}
-	nh.spinOnce();
-	
+	nh.spinOnce();	
 }

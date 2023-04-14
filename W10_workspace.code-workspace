@@ -2,27 +2,27 @@
 	"folders": [
 		{
 			"name": "radio_control",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/radio_control"
+			"path": "radio_control"
 		},
 		{
 			"name": "tractor_control",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/tractor_control"
+			"path": "tractor_control"
 		},
 		{
 			"name": "left_speed",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/left_speed"
+			"path": "left_speed"
 		},
 		{
 			"name": "right_speed",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/right_speed"
+			"path": "right_speed"
 		},
 		{
 			"name": "ttgo_esp32_pubsub",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_esp32_pubsub"
+			"path": "ttgo_esp32_pubsub"
 		},
 		{
 			"name": "ttgo_test_servo",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_servo"
+			"path": "ttgo_test_servo"
 		}
 	]
 }

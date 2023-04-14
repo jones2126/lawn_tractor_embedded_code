@@ -109,7 +109,8 @@ int mode_sw_analog = 0;
 // used classifying results
 #define arraySize 10 // size of array a
 int SteeringPts[arraySize] = {0, 130, 298, 451, 1233, 2351, 3468, 4094, 4096, 4097}; 
-float SteeringValues[] = {-0.73, -0.50, -0.25, 0, 0.25, 0.50, 0.73, 0.73, 0.73, 99};
+//float SteeringValues[] = {-0.73, -0.50, -0.25, 0, 0.25, 0.50, 0.73, 0.73, 0.73, 99};
+float SteeringValues[] = {0.73, 0.50, 0.25, 0, -0.25, -0.50, -0.73, -0.73, -0.73, 99};
 // although RSSI is presented as a negative, in order to use this array we will pass the ABS of RSSI ref: https://www.studocu.com/row/document/institute-of-space-technology/calculus/why-rssi-is-in-negative/3653793
 int RSSIPts[arraySize] = {0, 70, 90, 120, 124, 128, 132, 136, 140, 160}; 
 CRGB RSSIPtsValues[arraySize] = {CRGB::Green, CRGB::Green, CRGB::Yellow, CRGB::Yellow, CRGB::Red, CRGB::Red, CRGB::Red, CRGB::Red, CRGB::White, CRGB::White};

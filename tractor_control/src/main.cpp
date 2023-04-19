@@ -118,7 +118,7 @@ struct TractorDataStruct
   float speed;
   float heading;
   float voltage;
-  byte gps_rtk_status;  
+  int8_t gps_rtk_status;  
   unsigned long counter;
 } TractorData;
 
@@ -222,12 +222,15 @@ ros::Publisher chatter_pub("chatter", &str_msg);
 
 unsigned long prev_cmd_vel_time = 0;
 bool safety_flag_cmd_vel = false; 
+bool safety_flag_gps_fix = false; 
 float linear_x, angular_z; 
 char charBuf[150];
 const long chatterInterval = 2000;
 unsigned long prev_time_chatter = 0;
 const long cmd_velInterval = 500;
+const long gps_fixInterval = 500;
 unsigned long prev_time_cmdvel = 0;
+unsigned long prev_time_gps_fix = 0;
 
 /////////////////// transmission / speed PID and control variables ///////////////////////
 // Speeds in m/s corresponding to each PWM value
@@ -351,14 +354,21 @@ void check_cmdvel(){
   } else {
     safety_flag_cmd_vel = true;
   }
+}
 
+void check_gps_fix(){
+  if (millis() - prev_time_gps_fix > gps_fixInterval){
+    TractorData.gps_rtk_status = 9;
+    safety_flag_gps_fix = false;
+  } else {
+    safety_flag_gps_fix = true;
+  }
 }
 void fixCallback(const sensor_msgs::NavSatFix& msg)
 {
-  TractorData.gps_rtk_status = msg.status.status; 
+  TractorData.gps_rtk_status = msg.status.status;
+  prev_time_gps_fix = millis();
 }
-
-
 
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
 ros::Subscriber<std_msgs::Float32> left_speed_sub("left_speed", &left_speed_callback);
@@ -392,6 +402,7 @@ void loop(){
   nh.spinOnce();
   chatter();
   check_cmdvel();
+  check_gps_fix();
   check_LoRaRX();
   if ((currentMillis - prev_time_steer) >= steerInterval)
   {

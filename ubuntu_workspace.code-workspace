@@ -23,6 +23,10 @@
 		{
 			"name": "ttgo_test_servo",
 			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_servo"
+		},
+		{
+			"name": "ttgo_test_gps_status",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_gps_status"
 		}
 	]
 }

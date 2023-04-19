@@ -22,6 +22,7 @@ to do:
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <PID_v1.h>
 
 #include <RadioLib.h>
@@ -117,9 +118,11 @@ struct TractorDataStruct
   float speed;
   float heading;
   float voltage;
+  byte gps_rtk_status;  
   unsigned long counter;
 } TractorData;
 
+//TractorData.gps_rtk_status = 9;
 // tractorData 4 bytes/float = 3X4=12 + 4 bytes/unsigned long = 4 so 16 bytes; 2x/second or 32 bps
 
 uint8_t TractorData_message_len = sizeof(TractorData);
@@ -144,11 +147,11 @@ unsigned long speed_check_Interval = 1000;
 
 /////////////////// Steering variables ///////////////////////
 // pot values left: straight:1880; right:
-float safety_margin_pot = 300;                   // reduce this once I complete field testing
-float left_limit_pot = 3245 - safety_margin_pot; // the actual extreme limit is 3245
-float left_limit_angle = -0.73;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
-float right_limit_pot = 470 + safety_margin_pot; // the actual extreme limit is 470
-float right_limit_angle = 0.73;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
+float safety_margin_pot = 10;                   // reduce this once I complete field testing
+float left_limit_pot = 3310 - safety_margin_pot; // the actual extreme limit is 3400
+float left_limit_angle = 0.73;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
+float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
+float right_limit_angle = -0.73;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float steering_target_angle = 0;
 float steering_target_pot = 0;
 float steering_actual_angle = 0;
@@ -299,7 +302,8 @@ void chatter(){
     prev_time_chatter = millis();
     String message = "1: lnr.x: " + String(linear_x, 2)  //pwm_set
                    + ", ang.z: " + String(angular_z, 2)
-                  + ", pwm_set: " + pwm_set
+                  //+ ", pwm_set: " + pwm_set
+                  + ", steer_effort: " + String(steer_effort_float, 2)
                    + ", steer: " + String(setPoint, 2);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
@@ -321,6 +325,8 @@ void chatter(){
     message = "";
     message =      "3: Logic: " + String(tranmissionLogicflag)
                    + ", Servo:" + transmissionServoValue
+                   + ", steering_actual_pot " + String(steering_actual_pot)
+                   + ", gps_rtk_status " + String(TractorData.gps_rtk_status)               
                    + ", vel_effort:" + vel_effort;
                   // + ", pid output " + String(trans_pid_output, 2);
     message.toCharArray(charBuf, message.length() + 1);
@@ -347,10 +353,17 @@ void check_cmdvel(){
   }
 
 }
+void fixCallback(const sensor_msgs::NavSatFix& msg)
+{
+  TractorData.gps_rtk_status = msg.status.status; 
+}
+
+
 
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
 ros::Subscriber<std_msgs::Float32> left_speed_sub("left_speed", &left_speed_callback);
 ros::Subscriber<std_msgs::Float32> right_speed_sub("right_speed", &right_speed_callback);
+ros::Subscriber<sensor_msgs::NavSatFix> fix_sub("/fix", fixCallback);
 
 void setup(){
   pinMode(steer_angle_pin, INPUT);
@@ -365,6 +378,7 @@ void setup(){
   startOLED();
   InitLoRa();
   ROSsetup();
+  TractorData.gps_rtk_status = 9; 
 }
 void transmissionServoSetup(){
   pinMode(transmissionPowerPin, OUTPUT);
@@ -486,6 +500,7 @@ void ROSsetup()
   nh.subscribe(left_speed_sub);
   nh.subscribe(right_speed_sub);
   nh.advertise(chatter_pub);
+  nh.subscribe(fix_sub);  
   nh.loginfo("Tractor_Control Program, ROS!"); // enable ROS logging mechanism
 }
 
@@ -592,13 +607,18 @@ void steerVehicle()
     steer_effort = motor_power_limit;
     }
 
+/*
+I have to switch the steering around.  Specifically I previously thought negative angular z values
+represented a turn to the left.  Now I know they represent a turn to the right and vice versa.
+I'm going to change line 601 and 606 from HIGH to LOW and LOW to HIGH respectively.
+*/
   if (error > tolerance){
-    digitalWrite(DIRPin, HIGH); // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
+    digitalWrite(DIRPin, LOW); // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, steer_effort);
     }
   else if (error < (tolerance * -1)){
-    digitalWrite(DIRPin, LOW); // steer left - channel A led is lit; black wire (-) to motor; negative voltage
+    digitalWrite(DIRPin, HIGH); // steer left - channel A led is lit; black wire (-) to motor; negative voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
     analogWrite(PWMPin, abs(steer_effort));
     } else {

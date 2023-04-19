@@ -173,6 +173,7 @@ struct TractorDataStruct{
   float speed;
   float heading; 
   float voltage;
+  byte gps_rtk_status;    
   unsigned long counter;
   }TractorData;
 uint8_t TractorData_message_len = sizeof(TractorData);
@@ -402,7 +403,21 @@ void startBME(){
 void displayLEDstatus(){
     RSSI_test = classifyRange(RSSIPts, RSSI); 
     leds[0] = RSSIPtsValues[RSSI_test];
-    leds[1] = CRGB::Blue;
+
+    switch (TractorData.gps_rtk_status) {
+      case -1:
+        leds[1] = CRGB::Red;
+        break;
+      case 0:
+        leds[1] = CRGB::Yellow;
+        break;
+      case 2:
+        leds[1] = CRGB::Green;
+        break;
+      default:
+        leds[1] = CRGB::White;
+        break;}
+
     leds[2] = CRGB::Blue;
     leds[3] = CRGB::Blue;
     FastLED.show();

@@ -415,7 +415,7 @@ void displayLEDstatus(){
         leds[1] = CRGB::Green;
         break;
       default:
-        leds[1] = CRGB::White;
+        leds[1] = CRGB::Red;
         break;}
 
     leds[2] = CRGB::Blue;

@@ -173,7 +173,7 @@ struct TractorDataStruct{
   float speed;
   float heading; 
   float voltage;
-  byte gps_rtk_status;    
+  int8_t gps_rtk_status;    
   unsigned long counter;
   }TractorData;
 uint8_t TractorData_message_len = sizeof(TractorData);

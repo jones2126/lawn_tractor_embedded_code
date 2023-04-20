@@ -316,11 +316,12 @@ void chatter(){
     message =      "2: mode: " + String(RadioControlData.control_mode) //actual_speed
                      + ", act speed:" + String(actual_speed, 3)
 //                   + ", RSSI:" + radio.getRSSI()   
-                    + ", kp " + String(trans_kp, 2)    
-                    + ", ki " + String(trans_ki, 6)   
+                    + ", t_kp " + String(trans_kp, 2)    
+                    + ", t_ki " + String(trans_ki, 6)
+                    + ", t_kd " + String(trans_kd, 2);
 //                    + ", t_kd " + String(trans_kd, 3)                                                                         
 //                    + ", LoRa: " + String(safety_flag_LoRaRx)
-                    + ", cmd_vel: " + String(safety_flag_cmd_vel);
+                   // + ", cmd_vel: " + String(safety_flag_cmd_vel);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);

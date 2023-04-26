@@ -111,7 +111,8 @@ void loop() {
     meters_per_second = (RPM * wheel_circumfrence) / 60;  // m/s = distance (meters) traveled during the time period * amount of time in seconds  
 
     // publish ROS topics
-    left_speed.data = meters_per_second * -1;  // the negative one is needed because the sensor gears flow in reverse on the left side
+    //left_speed.data = meters_per_second * -1;  // the negative one is needed because the sensor gears flow in reverse on the left side
+    left_speed.data = meters_per_second;  // I'm removing the -1 because the speed is being published as negative
     as5048b_speed_left.publish(&left_speed);
     left_meters_travelled_msg.data = meters_travelled;
     as5048b_mtrs_trvld.publish(&left_meters_travelled_msg);    

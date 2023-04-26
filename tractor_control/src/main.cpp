@@ -22,6 +22,7 @@ to do:
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
+#include "std_msgs/Int32.h"
 #include <sensor_msgs/NavSatFix.h>
 #include <PID_v1.h>
 
@@ -218,8 +219,9 @@ float X_meas;   // Measured value
 /////////// ROS setup and variables /////////////////////
 ros::NodeHandle nh;
 std_msgs::String str_msg;
+std_msgs::Int32 transmission_servo_msg;
 ros::Publisher chatter_pub("chatter", &str_msg);
-
+ros::Publisher transmission_servo_pub("transmission_servo", &transmission_servo_msg);
 unsigned long prev_cmd_vel_time = 0;
 bool safety_flag_cmd_vel = false; 
 bool safety_flag_gps_fix = false; 
@@ -512,6 +514,7 @@ void ROSsetup()
   nh.subscribe(left_speed_sub);
   nh.subscribe(right_speed_sub);
   nh.advertise(chatter_pub);
+  nh.advertise(transmission_servo_pub);
   nh.subscribe(fix_sub);  
   nh.loginfo("Tractor_Control Program, ROS!"); // enable ROS logging mechanism
 }
@@ -651,8 +654,8 @@ void throttleVehicle(){
   //trans_kd = 15;
   controller_trans.setKd(trans_kd);
   tranmissionLogicflag = 0;
-  // actual_speed = (left_speed + right_speed) / 2.0;
-  actual_speed = right_speed;  // just one wheel for testing on jacks  
+  actual_speed = (left_speed + right_speed) / 2.0;
+  //actual_speed = right_speed;  // just one wheel for testing on jacks  
 
   if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
@@ -698,7 +701,10 @@ void throttleVehicle(){
 
   digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
   ledcWrite(PWM_CHANNEL, transmissionServoValue);       // write PWM value to transmission servo
+  transmission_servo_msg.data = transmissionServoValue;
+  transmission_servo_pub.publish(&transmission_servo_msg);
   prev_time_throttle = millis();
+  //  publish transmissionServoValue  
 }
 
 double computePID(float inp)

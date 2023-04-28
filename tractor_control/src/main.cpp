@@ -55,6 +55,7 @@ void right_speed_callback(const std_msgs::Float32& right_speed_msg);
 void velocityControl();
 void velocityControl2();
 int calculatePWM(double target_speed);
+void get_control_paramaaters();
 
 ///////////////////////  PID Class used for steering and speed control //////////////////////////////////
 class PIDController {
@@ -284,6 +285,14 @@ float trans_kd = 0.0;
 double trans_dt = throttleInterval;
 PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
 
+int sp_reverse_100 = 230;
+int sp_reverse_075 = 245;
+int sp_neutral = 256;
+int sp_forward_025 = 279;
+int sp_forward_050 = 285;
+int sp_forward_075 = 291;
+int sp_forward_100 = 294;
+
 ///////////////////////////// Velocity2 variables //////////////////////
 int Ki_count = 0; 
 int Ki_timeout = 20;
@@ -299,6 +308,14 @@ int vel_eff_sum = 0;
 int vel_start = 0;
 //int vel_eff_target = 0;
 //int vel_neutral = 1550;
+
+//////////////////////// variables for parameter settings ///////////////////////////////////
+const int NUM_SPEED_PARAMS = 7;
+const long PARAMS_UPDATE_INTERVAL = 60000; 
+//float speed_params_array[NUM_SPEED_PARAMS];
+float speed_params_array[NUM_SPEED_PARAMS] = {253.0, 253.0, 253.0, 253.0, 253.0, 253.0, 253.0};
+
+unsigned long prev_time_stamp_params = 0;
 
 //////////////////////// output debug statements ///////////////////////////////////
 void chatter(){
@@ -407,6 +424,7 @@ void loop(){
   check_cmdvel();
   check_gps_fix();
   check_LoRaRX();
+  get_control_paramaaters();
   if ((currentMillis - prev_time_steer) >= steerInterval)
   {
     steerVehicle();
@@ -891,4 +909,19 @@ void velocityControl2(){
     error_sum = 0;
   }
 }
-
+void get_control_paramaaters() {
+  if (millis() - prev_time_stamp_params >= PARAMS_UPDATE_INTERVAL) {  // retrieve paramaters
+    nh.getParam("/speed_params", speed_params_array, NUM_SPEED_PARAMS);
+    sp_reverse_100 = speed_params_array[0];
+    sp_reverse_075 = speed_params_array[1];
+    sp_neutral = speed_params_array[2];
+    sp_forward_025 = speed_params_array[3];
+    sp_forward_050 = speed_params_array[4];
+    sp_forward_075 = speed_params_array[5];
+    sp_forward_100 = speed_params_array[6];
+    char buffer[150];
+    sprintf(buffer, "speed_params retrieval - sp_reverse_100 :%.1f, sp_neutral: %.1f, sp_forward_100: %.1f", speed_params_array[0], sp_neutral, sp_forward_100);
+    nh.loginfo(buffer);
+    prev_time_stamp_params = millis();
+  }
+}

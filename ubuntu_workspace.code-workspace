@@ -31,6 +31,10 @@
 		{
 			"name": "ttgo_read_ROS_params",
 			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_read_ROS_params"
+		},
+		{
+			"name": "ttgo_test_pulling_compile_date",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pulling_compile_date"
 		}
 	]
 }

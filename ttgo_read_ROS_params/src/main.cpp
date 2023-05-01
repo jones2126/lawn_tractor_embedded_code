@@ -11,7 +11,8 @@ for corresponding launch file to test
 */
 ros::NodeHandle nh;
 constexpr size_t NUM_SPEED_PARAMS = 7;
-float speed_params_array[NUM_SPEED_PARAMS];
+//float speed_params_array[NUM_SPEED_PARAMS];
+int speed_params_array[NUM_SPEED_PARAMS];
 int seconds_before_reset = 999;
 float previous_first_param = -1;
 void setup() {
@@ -34,9 +35,11 @@ void loop() {
       if (speed_params_array[0] != previous_first_param) {
         previous_first_param = speed_params_array[0];
         nh.loginfo("First parameter has changed. Retrieved speed_params:");
-        for (const float &value : speed_params_array) {
+        //for (const float &value : speed_params_array) {
+        for (const int &value : speed_params_array) {          
           char buffer[32];
-          snprintf(buffer, sizeof(buffer), "%.2f", value);
+          //snprintf(buffer, sizeof(buffer), "%.2f", value);
+          snprintf(buffer, sizeof(buffer), "%d", value);
           nh.loginfo(buffer);
         }
       }

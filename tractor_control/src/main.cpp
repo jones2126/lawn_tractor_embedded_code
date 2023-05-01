@@ -245,16 +245,20 @@ This table is being used to correspond to PWM values from 285 to 300.
 int servoMin = 265; // Minimum PWM value for servo control
 int servoMax = 300; // Maximum PWM value for servo control
 bool pwm_set = false;
-int pwm = servoMin;
-int transmissionFullReversePos = 230;  // represents ~-1.5 m/s
-int transmissionFirstReversePos = 240; // untested
+// int pwm = servoMin;
+int transmissionFullReversePos = 230;  
+int transmission075ReversePos  = 245;
+int transmissionFirstReversePos = 240; 
 int transmissionNeutralPos = 256;
 int transmissionFirstForwardPos = 275;
-int transmissionFullForwardPos = 300;  // represents ~+2.0 m/s  // started at 315 but unrestrained speed got to 4 m/s
+int transmission025ForwardPos = 279;
+int transmission050ForwardPos = 285;
+int transmission075ForwardPos  = 291;
+int transmissionFullForwardPos = 294;  
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 int tranmissioPotValue = 0;                   // incoming throttle setting
-float maxForwardSpeed = 1.8; // m/s
-float maxReverseSpeed = 1.0; // m/s
+//float maxForwardSpeed = 1.8; // m/s
+//float maxReverseSpeed = 1.0; // m/s
 
 #define PWM_CHANNEL 0
 #define PWM_FREQ 50
@@ -285,14 +289,6 @@ float trans_kd = 0.0;
 double trans_dt = throttleInterval;
 PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
 
-int sp_reverse_100 = 230;
-int sp_reverse_075 = 245;
-int sp_neutral = 256;
-int sp_forward_025 = 279;
-int sp_forward_050 = 285;
-int sp_forward_075 = 291;
-int sp_forward_100 = 294;
-
 ///////////////////////////// Velocity2 variables //////////////////////
 int Ki_count = 0; 
 int Ki_timeout = 20;
@@ -311,12 +307,21 @@ int vel_start = 0;
 
 //////////////////////// variables for parameter settings ///////////////////////////////////
 const int NUM_SPEED_PARAMS = 7;
-const long PARAMS_UPDATE_INTERVAL = 60000; 
+const long PARAMS_UPDATE_INTERVAL = 10000; 
 //float speed_params_array[NUM_SPEED_PARAMS];
-float speed_params_array[NUM_SPEED_PARAMS] = {253.0, 253.0, 253.0, 253.0, 253.0, 253.0, 253.0};
+int speed_params_array[NUM_SPEED_PARAMS] = {
+  transmissionFullReversePos,
+  transmission075ReversePos,
+  transmissionNeutralPos,
+  transmission025ForwardPos,
+  transmission050ForwardPos,
+  transmission075ForwardPos,
+  transmissionFullForwardPos
+  };
 
 unsigned long prev_time_stamp_params = 0;
-
+bool rosserial_safety_sw = true;
+bool rosserial_speed_success_sw = false;
 //////////////////////// output debug statements ///////////////////////////////////
 void chatter(){
   if (millis() - prev_time_chatter > chatterInterval)
@@ -528,6 +533,10 @@ void InitLoRa()
 void ROSsetup()
 {
   nh.initNode();
+  while (!nh.connected()) {    // Wait for the node to be connected
+    nh.spinOnce();
+    delay(100);
+  }  
   nh.subscribe(cmd_vel_sub);
   nh.subscribe(left_speed_sub);
   nh.subscribe(right_speed_sub);
@@ -911,17 +920,30 @@ void velocityControl2(){
 }
 void get_control_paramaaters() {
   if (millis() - prev_time_stamp_params >= PARAMS_UPDATE_INTERVAL) {  // retrieve paramaters
-    nh.getParam("/speed_params", speed_params_array, NUM_SPEED_PARAMS);
-    sp_reverse_100 = speed_params_array[0];
-    sp_reverse_075 = speed_params_array[1];
-    sp_neutral = speed_params_array[2];
-    sp_forward_025 = speed_params_array[3];
-    sp_forward_050 = speed_params_array[4];
-    sp_forward_075 = speed_params_array[5];
-    sp_forward_100 = speed_params_array[6];
-    char buffer[150];
-    sprintf(buffer, "speed_params retrieval - sp_reverse_100 :%.1f, sp_neutral: %.1f, sp_forward_100: %.1f", speed_params_array[0], sp_neutral, sp_forward_100);
-    nh.loginfo(buffer);
     prev_time_stamp_params = millis();
+    rosserial_speed_success_sw = nh.getParam("/speed_params", speed_params_array, NUM_SPEED_PARAMS);
+    char buffer[150];
+    sprintf(buffer, "speed_params retrieval - transmissionFullReversePos :%d, transmissionNeutralPos: %d, transmissionFullForwardPos: %d", speed_params_array[0], speed_params_array[2], speed_params_array[6]);
+    nh.loginfo(buffer);
+    if (rosserial_speed_success_sw) {
+      rosserial_safety_sw = true;
+    } else {
+      rosserial_safety_sw = false;
+      char log_buf[60];
+      snprintf(log_buf, sizeof(log_buf), "Read of /speed_params unsuccessful - current values are:");
+      nh.logwarn(log_buf);
+      for (const int &value : speed_params_array) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d", value);
+        nh.loginfo(buffer);
+      }
+    }
+  transmissionFullReversePos = speed_params_array[0];
+  transmission075ReversePos  = speed_params_array[1];
+  transmissionNeutralPos = speed_params_array[2];
+  transmission025ForwardPos = speed_params_array[3];
+  transmission050ForwardPos = speed_params_array[4];
+  transmission075ForwardPos  = speed_params_array[5];
+  transmissionFullForwardPos = speed_params_array[6];
   }
-}
+}  

@@ -54,6 +54,7 @@ void left_speed_callback(const std_msgs::Float32& left_speed_msg);
 void right_speed_callback(const std_msgs::Float32& right_speed_msg);
 void velocityControl();
 void velocityControl2();
+void velocityControl3();
 int calculatePWM(double target_speed);
 void get_control_paramaaters();
 
@@ -352,7 +353,7 @@ void chatter(){
     delay(5);
     message = "";
     message =      "3: Logic: " + String(tranmissionLogicflag)
-                   + ", Servo:" + transmissionServoValue
+                   + ", Transmission Servo:" + transmissionServoValue
                    + ", steering_actual_pot " + String(steering_actual_pot)
                    + ", gps_rtk_status " + String(TractorData.gps_rtk_status)               
                    + ", vel_effort:" + vel_effort;
@@ -704,7 +705,7 @@ void throttleVehicle(){
   {
 
       //velocityControl();
-      velocityControl2();
+      velocityControl3();
       //trans_pid_output = controller_trans.calculate(linear_x, actual_speed);
       //transmissionServoValue =  transmissionFirstForwardPos + trans_pid_output;   
       if (transmissionServoValue > transmissionFullForwardPos) {
@@ -918,6 +919,32 @@ void velocityControl2(){
     error_sum = 0;
   }
 }
+void velocityControl3(){
+tranmissionLogicflag = 10;  
+if (linear_x >= 1) {
+    transmissionServoValue = transmissionFullForwardPos;
+    tranmissionLogicflag = 11;
+  } else if (linear_x >= 0.75) {
+    tranmissionLogicflag = 12;
+    transmissionServoValue = transmission075ForwardPos;
+    tranmissionLogicflag = 13;
+  } else if (linear_x >= 0.5) {
+    tranmissionLogicflag = 14;
+    transmissionServoValue = transmission050ForwardPos;
+  } else if (linear_x >= 0.05) {
+    transmissionServoValue = transmission025ForwardPos;
+  } else if (linear_x >= -0.05) {
+    transmissionServoValue = transmissionNeutralPos;
+  } else if (linear_x >= -0.75) {
+    transmissionServoValue = transmission075ReversePos;
+  } else if (linear_x >= -1) {
+    transmissionServoValue = transmissionFullReversePos;
+  } else {
+    transmissionServoValue = transmissionNeutralPos;
+    tranmissionLogicflag = 15;
+  }
+}
+
 void get_control_paramaaters() {
   if (millis() - prev_time_stamp_params >= PARAMS_UPDATE_INTERVAL) {  // retrieve paramaters
     prev_time_stamp_params = millis();

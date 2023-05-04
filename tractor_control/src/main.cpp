@@ -47,7 +47,7 @@ void eStopRoutine();
 void transmissionServoSetup();
 void startOLED();
 void displayOLED();
-void createCSV();
+//void createCSV();
 void ROSsetup();
 void check_LoRaRX();
 void left_speed_callback(const std_msgs::Float32& left_speed_msg);
@@ -55,7 +55,7 @@ void right_speed_callback(const std_msgs::Float32& right_speed_msg);
 void velocityControl();
 void velocityControl2();
 void velocityControl3();
-int calculatePWM(double target_speed);
+//int calculatePWM(double target_speed);
 void get_control_paramaaters();
 
 ///////////////////////  PID Class used for steering and speed control //////////////////////////////////
@@ -229,7 +229,7 @@ bool safety_flag_cmd_vel = false;
 bool safety_flag_gps_fix = false; 
 float linear_x, angular_z; 
 char charBuf[150];
-const long chatterInterval = 2000;
+const long chatterInterval = 500;
 unsigned long prev_time_chatter = 0;
 const long cmd_velInterval = 500;
 const long gps_fixInterval = 500;
@@ -343,10 +343,10 @@ void chatter(){
 //                   + ", RSSI:" + radio.getRSSI()   
                     + ", t_kp " + String(trans_kp, 2)    
                     + ", t_ki " + String(trans_ki, 6)
-                    + ", t_kd " + String(trans_kd, 2);
+                    + ", t_kd " + String(trans_kd, 2)
 //                    + ", t_kd " + String(trans_kd, 3)                                                                         
-//                    + ", LoRa: " + String(safety_flag_LoRaRx)
-                   // + ", cmd_vel: " + String(safety_flag_cmd_vel);
+                    + ", LoRa sw: " + String(safety_flag_LoRaRx)
+                    + ", cmd_vel: " + String(safety_flag_cmd_vel);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);

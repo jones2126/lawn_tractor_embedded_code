@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"name": "radio_control",
+			"path": "radio_control"
+		},
+		{
+			"name": "tractor_control",
+			"path": "tractor_control"
+		},
+		{
+			"name": "left_speed",
+			"path": "left_speed"
+		},
+		{
+			"name": "right_speed",
+			"path": "right_speed"
+		},
+		{
+			"name": "test_rosserial",
+			"path": "test_rosserial"
+		}
+	]
+}

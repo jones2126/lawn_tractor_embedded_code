@@ -138,7 +138,7 @@ const long infoInterval = 2000;
 const long steerInterval = 50; 
 const long throttleInterval = 250;
 //const long throttleInterval = 100;
-const long csvInterval = 200;
+//const long csvInterval = 200;
 unsigned long prev_time_reading = 0;
 unsigned long prev_time_xmit = 0;
 unsigned long prev_time_printinfo = 0;
@@ -222,8 +222,10 @@ float X_meas;   // Measured value
 ros::NodeHandle nh;
 std_msgs::String str_msg;
 std_msgs::Int32 transmission_servo_msg;
+std_msgs::Int32 cmd_vel_time_diff_msg;
 ros::Publisher chatter_pub("chatter", &str_msg);
 ros::Publisher transmission_servo_pub("transmission_servo", &transmission_servo_msg);
+ros::Publisher cmd_vel_time_diff_pub("cmd_vel_time_diff", &cmd_vel_time_diff_msg);
 unsigned long prev_cmd_vel_time = 0;
 bool safety_flag_cmd_vel = false; 
 bool safety_flag_gps_fix = false; 
@@ -231,7 +233,7 @@ float linear_x, angular_z;
 char charBuf[150];
 const long chatterInterval = 500;
 unsigned long prev_time_chatter = 0;
-const long cmd_velInterval = 500;
+const long cmd_velInterval = 5000;
 const long gps_fixInterval = 500;
 unsigned long prev_time_cmdvel = 0;
 unsigned long prev_time_gps_fix = 0;
@@ -253,7 +255,7 @@ int transmissionFirstReversePos = 240;
 int transmissionNeutralPos = 256;
 int transmissionFirstForwardPos = 275;
 int transmission025ForwardPos = 279;
-int transmission050ForwardPos = 285;
+int transmission050ForwardPos = 287;
 int transmission075ForwardPos  = 291;
 int transmissionFullForwardPos = 294;  
 int transmissionServoValue = transmissionNeutralPos; // neutral position
@@ -369,7 +371,9 @@ void cmd_vel(const geometry_msgs::Twist &vel){
   linear_x = vel.linear.x;
   //  target_speed = cmd_vel_msg.data;
   angular_z = vel.angular.z;
-  prev_time_cmdvel = millis();
+  cmd_vel_time_diff_msg.data = millis() - prev_time_cmdvel; 
+  cmd_vel_time_diff_pub.publish(&cmd_vel_time_diff_msg); 
+  prev_time_cmdvel = millis();   
 }
 
 void check_cmdvel(){
@@ -377,6 +381,11 @@ void check_cmdvel(){
     linear_x = 0;
     angular_z = 0;
     safety_flag_cmd_vel = false;
+    String message = "";
+    message = "4: cmd_vel time diff: " + String(millis() - prev_time_cmdvel);
+    message.toCharArray(charBuf, message.length() + 1);
+    str_msg.data = charBuf;
+    chatter_pub.publish(&str_msg);
   } else {
     safety_flag_cmd_vel = true;
   }
@@ -542,7 +551,8 @@ void ROSsetup()
   nh.subscribe(left_speed_sub);
   nh.subscribe(right_speed_sub);
   nh.advertise(chatter_pub);
-  nh.advertise(transmission_servo_pub);
+  nh.advertise(transmission_servo_pub); //cmd_vel_time_diff
+  nh.advertise(cmd_vel_time_diff_pub);  
   nh.subscribe(fix_sub);  
   nh.loginfo("Tractor_Control Program, ROS!"); // enable ROS logging mechanism
 }
@@ -595,6 +605,11 @@ void handleIncomingMsg()
     }
     else
     {
+      String message = "";
+      message = "6: Radio Transmission good, disabling eStop, Relay 2 led OFF";
+      message.toCharArray(charBuf, message.length() + 1);
+      str_msg.data = charBuf;
+      chatter_pub.publish(&str_msg);
       digitalWrite(estopRelay_pin, HIGH);
     }
     digitalWrite(led, HIGH);
@@ -729,7 +744,7 @@ void throttleVehicle(){
 
   digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
   ledcWrite(PWM_CHANNEL, transmissionServoValue);       // write PWM value to transmission servo
-  transmission_servo_msg.data = transmissionServoValue;
+  transmission_servo_msg.data = transmissionServoValue;  //cmd_vel_time_diff
   transmission_servo_pub.publish(&transmission_servo_msg);
   prev_time_throttle = millis();
   //  publish transmissionServoValue  
@@ -768,13 +783,18 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 }
 void eStopRoutine()
 {
+  tranmissionLogicflag = 20;
   digitalWrite(estopRelay_pin, LOW);       // turn the LED on (HIGH is the voltage level)
   digitalWrite(transmissionPowerPin, LOW); // make sure power is on to transmission servo
   //transmissionServo.write(transmissionNeutralPos);
   ledcWrite(PWM_CHANNEL, transmissionServoValue);
   delay(500);
   digitalWrite(transmissionPowerPin, HIGH); // turn power off to transmission servo
-
+  String message = "";
+  message = "5: e-Stop routine called - relay 2 led should is ON";
+  message.toCharArray(charBuf, message.length() + 1);
+  str_msg.data = charBuf;
+  chatter_pub.publish(&str_msg);
 }
 void startOLED()
 {

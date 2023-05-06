@@ -35,6 +35,14 @@
 		{
 			"name": "ttgo_test_pulling_compile_date",
 			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pulling_compile_date"
+		},
+		{
+			"name": "ttgo_oled_test",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_oled_test"
+		},
+		{
+			"name": "ttgo_test_pin",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pin"
 		}
 	]
 }

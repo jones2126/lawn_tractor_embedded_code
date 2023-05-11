@@ -55,6 +55,14 @@
 		{
 			"name": "ttgo_hello_world2",
 			"path": "ttgo_hello_world2"
+		},
+		{
+			"name": "ttgo_LoRa_test_initiator",
+			"path": "ttgo_LoRa_test_initiator"
+		},
+		{
+			"name": "ttgo_LoRa_test_receiver",
+			"path": "ttgo_LoRa_test_receiver"
 		}
 	]
 }

@@ -43,6 +43,18 @@
 		{
 			"name": "ttgo_test_pin",
 			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pin"
+		},
+		{
+			"name": "ttgo_test_reading_angle_with_filter",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_reading_angle_with_filter"
+		},
+		{
+			"name": "ttgo_lora_rx_interrupt",
+			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_lora_rx_interrupt"
+		},
+		{
+			"name": "ttgo_hello_world2",
+			"path": "ttgo_hello_world2"
 		}
 	]
 }

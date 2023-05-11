@@ -30,7 +30,9 @@ to do:
 //#include <ESP32Servo.h>
 #include <driver/ledc.h>
 #include <Adafruit_SSD1306.h>
-
+//#if defined(ESP8266) || defined(ESP32)
+//  ICACHE_RAM_ATTR
+//#endif
 ///////////////////////  functions defined below //////////////////////////////////
 // functions below loop() - required to tell VSCode compiler to look for them below.  Not required when using Arduino IDE
 void InitLoRa();
@@ -56,7 +58,11 @@ void velocityControl();
 void velocityControl2();
 void velocityControl3();
 //int calculatePWM(double target_speed);
-void get_control_paramaaters();
+void get_control_paramaters();
+void check_rosserial();
+void get_steer_angle();
+void calc_loop_avg();
+void receivePacket(void);
 
 ///////////////////////  PID Class used for steering and speed control //////////////////////////////////
 class PIDController {
@@ -98,6 +104,9 @@ SX1276 radio = new Module(18, 26, 14, 33); // Module(CS, DI0, RST, ??); - Module
 unsigned long lastLoraRxTime = 0;
 const long minlastLoraRx = 500;
 bool safety_flag_LoRaRx = false;
+volatile bool received_flag = false;
+int state = 0;
+volatile bool newPacketReceived = false;
 
 struct RadioControlStruct
 {
@@ -132,11 +141,12 @@ uint8_t TractorData_message_len = sizeof(TractorData);
 uint8_t tx_TractorData_buf[sizeof(TractorData)] = {0};
 
 /////////////////////Loop Timing variables///////////////////////
-const long readingInterval = 100;  // 500 2 Hz, 100 10 Hz, 50 20 Hz, 20 50 Hz
-const long transmitInterval = 500;
+const long readingInterval = 100;  // 500 2 Hz, 100 10 Hz, 50 20 Hz, 20 50 Hz; was 100 changing for testing
+const long transmitInterval = 300;// was 300 changing for testing
 const long infoInterval = 2000;
-const long steerInterval = 50; 
-const long throttleInterval = 250;
+const long steerInterval = 50; // was 50, changing for testing
+const long throttleInterval = 250;  // was 250, changing for testing
+const long radioInterval = 100;
 //const long throttleInterval = 100;
 //const long csvInterval = 200;
 unsigned long prev_time_reading = 0;
@@ -146,12 +156,17 @@ unsigned long prev_time_steer = 0;
 unsigned long prev_time_throttle = 0;
 unsigned long prev_time_csv = 0;
 unsigned long prev_speed_check = 0;
-unsigned long speed_check_Interval = 1000;
+unsigned long prev_radio_msg = 0;
+//unsigned long speed_check_Interval = 300;  // changed for testing
+unsigned long currentMillis = millis();
+int loop_count = 0;
+unsigned long loop_timer_start = millis();
+unsigned long loop_timer_Interval = 10000;
 
 /////////////////// Steering variables ///////////////////////
 // pot values left: straight:1880; right:
 float safety_margin_pot = 10;                   // reduce this once I complete field testing
-float left_limit_pot = 3310 - safety_margin_pot; // the actual extreme limit is 3400
+float left_limit_pot = 3470 - safety_margin_pot; // the actual extreme limit is 3400
 float left_limit_angle = 0.73;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
 float right_limit_angle = -0.73;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
@@ -164,10 +179,18 @@ int steer_effort = 0;
 float tolerance = 0.007; // 1% of 0.73
 const int motor_power_limit = 150;
 
+// for steering potentiometer filter
+float gain = 0.1; // filter gain
+int filtered_steer_pot_int = 0;
+float filtered_steering_pot_float = 0.0; // current filtered angle
+float prev_angle = 0; // previous filtered angle
+const long read_steerInterval = 50; // 50=20 Hz, 500=2 Hz
+unsigned long prev_time_read_steer = 0;
+
 /////////////////// steering PID variables ///////////////////////
-float kp = 268; 
-float ki = 0.0;
-float kd = 385; // 100 and 200 were OK; 300 slowed steering 385 seems ok; 3/9/23
+float steer_kp = 268; 
+float steer_ki = 0.0;
+float steer_kd = 385; // 100 and 200 were OK; 300 slowed steering 385 seems ok; 3/9/23
 unsigned long currentTime, previousTime;
 float elapsedTime;
 float error;
@@ -207,8 +230,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 #define row_6 45
 #define row_7 54
 unsigned long prev_time_OLED = 0;
-const long OLEDInterval = 500;
-
+const long OLEDInterval = 3000;  // originally 500, changing for testing
+/*
 /////////// Kalman filter parameters /////////////////////
 float Q = 0.05; // Process noise
 float R = 0.5;  // Measurement noise
@@ -217,6 +240,7 @@ float K;        // Kalman gain
 float Xhat;     // Estimated value
 float Xhat_prev = 0; // Previous estimated value
 float X_meas;   // Measured value
+*/
 
 /////////// ROS setup and variables /////////////////////
 ros::NodeHandle nh;
@@ -231,12 +255,14 @@ bool safety_flag_cmd_vel = false;
 bool safety_flag_gps_fix = false; 
 float linear_x, angular_z; 
 char charBuf[150];
-const long chatterInterval = 500;
+char log_buf[60];
+const long chatterInterval = 2000;
 unsigned long prev_time_chatter = 0;
 const long cmd_velInterval = 5000;
-const long gps_fixInterval = 500;
+const long gps_fixInterval = 1000;
 unsigned long prev_time_cmdvel = 0;
 unsigned long prev_time_gps_fix = 0;
+bool rosserial_avail_sw = false; 
 
 /////////////////// transmission / speed PID and control variables ///////////////////////
 // Speeds in m/s corresponding to each PWM value
@@ -286,11 +312,11 @@ float trans_cumError, trans_rateError;
 double actual_speed, trans_pid_output;
 
 // Set up the PID controller
-float trans_kp = 100.0; 
-float trans_ki = 0.0;
-float trans_kd = 0.0; 
-double trans_dt = throttleInterval;
-PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
+//float trans_kp = 100.0; 
+//float trans_ki = 0.0;
+//float trans_kd = 0.0; 
+//double trans_dt = throttleInterval;
+//PIDController controller_trans(trans_kp, trans_ki, trans_kd, trans_dt);
 
 ///////////////////////////// Velocity2 variables //////////////////////
 int Ki_count = 0; 
@@ -302,7 +328,7 @@ double err_value_Kp = 0;
 double error_sum = 0;
 //double err_value_Kd = 0;
 double err_value = 0;
-int vel_effort = 0; 
+//int vel_effort = 0; 
 int vel_eff_sum = 0; 
 int vel_start = 0;
 //int vel_eff_target = 0;
@@ -310,7 +336,7 @@ int vel_start = 0;
 
 //////////////////////// variables for parameter settings ///////////////////////////////////
 const int NUM_SPEED_PARAMS = 7;
-const long PARAMS_UPDATE_INTERVAL = 10000; 
+const long PARAMS_UPDATE_INTERVAL = 30000; 
 //float speed_params_array[NUM_SPEED_PARAMS];
 int speed_params_array[NUM_SPEED_PARAMS] = {
   transmissionFullReversePos,
@@ -327,6 +353,7 @@ bool rosserial_safety_sw = true;
 bool rosserial_speed_success_sw = false;
 //////////////////////// output debug statements ///////////////////////////////////
 void chatter(){
+  //if ((millis() - prev_time_chatter > chatterInterval) && (rosserial_avail_sw == true))
   if (millis() - prev_time_chatter > chatterInterval)
   {
     prev_time_chatter = millis();
@@ -334,7 +361,8 @@ void chatter(){
                    + ", ang.z: " + String(angular_z, 2)
                   //+ ", pwm_set: " + pwm_set
                   + ", steer_effort: " + String(steer_effort_float, 2)
-                   + ", steer: " + String(setPoint, 2);
+                  + ", steering_actual_angle: " + String(steering_actual_angle, 2)
+                   + ", steer target: " + String(setPoint, 2);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
     chatter_pub.publish(&str_msg);
@@ -343,9 +371,9 @@ void chatter(){
     message =      "2: mode: " + String(RadioControlData.control_mode) //actual_speed
                      + ", act speed:" + String(actual_speed, 3)
 //                   + ", RSSI:" + radio.getRSSI()   
-                    + ", t_kp " + String(trans_kp, 2)    
-                    + ", t_ki " + String(trans_ki, 6)
-                    + ", t_kd " + String(trans_kd, 2)
+                    + ", s_kp " + String(steer_kp, 2)    
+                    + ", s_ki " + String(steer_ki, 6)
+                    + ", s_kd " + String(steer_kd, 2)
 //                    + ", t_kd " + String(trans_kd, 3)                                                                         
                     + ", LoRa sw: " + String(safety_flag_LoRaRx)
                     + ", cmd_vel: " + String(safety_flag_cmd_vel);
@@ -355,10 +383,11 @@ void chatter(){
     delay(5);
     message = "";
     message =      "3: Logic: " + String(tranmissionLogicflag)
-                   + ", Transmission Servo:" + transmissionServoValue
-                   + ", steering_actual_pot " + String(steering_actual_pot)
-                   + ", gps_rtk_status " + String(TractorData.gps_rtk_status)               
-                   + ", vel_effort:" + vel_effort;
+                  // + ", Transmission Servo:" + transmissionServoValue
+                  + ", steering_pot smooth " + String(filtered_steer_pot_int)
+                  + ", steering_pot raw " + String(steering_actual_pot)
+                  + ", gps_rtk_status " + String(TractorData.gps_rtk_status);            
+                 //  + ", vel_effort:" + vel_effort;
                   // + ", pid output " + String(trans_pid_output, 2);
     message.toCharArray(charBuf, message.length() + 1);
     str_msg.data = charBuf;
@@ -371,8 +400,10 @@ void cmd_vel(const geometry_msgs::Twist &vel){
   linear_x = vel.linear.x;
   //  target_speed = cmd_vel_msg.data;
   angular_z = vel.angular.z;
-  cmd_vel_time_diff_msg.data = millis() - prev_time_cmdvel; 
-  cmd_vel_time_diff_pub.publish(&cmd_vel_time_diff_msg); 
+  if (rosserial_avail_sw == true){
+    cmd_vel_time_diff_msg.data = millis() - prev_time_cmdvel; 
+    cmd_vel_time_diff_pub.publish(&cmd_vel_time_diff_msg);
+    }
   prev_time_cmdvel = millis();   
 }
 
@@ -381,11 +412,15 @@ void check_cmdvel(){
     linear_x = 0;
     angular_z = 0;
     safety_flag_cmd_vel = false;
-    String message = "";
-    message = "4: cmd_vel time diff: " + String(millis() - prev_time_cmdvel);
-    message.toCharArray(charBuf, message.length() + 1);
-    str_msg.data = charBuf;
-    chatter_pub.publish(&str_msg);
+    /*
+    if (rosserial_avail_sw == true){
+      String message = "";
+      message = "4: cmd_vel time diff: " + String(millis() - prev_time_cmdvel);
+      message.toCharArray(charBuf, message.length() + 1);
+      str_msg.data = charBuf;
+      chatter_pub.publish(&str_msg);
+    }
+    */
   } else {
     safety_flag_cmd_vel = true;
   }
@@ -414,7 +449,7 @@ void setup(){
   pinMode(steer_angle_pin, INPUT);
   pinMode(mode_pin, INPUT);         // used for testing - read Kp from potentiometer
   pinMode(steering_pot_pin, INPUT); // used for testing - read Kd from potentiometer
-  pinMode(throttle_pot_pin, INPUT); // used for testing - read Kd from potentiometer
+  //pinMode(throttle_pot_pin, INPUT); // used for testing - read Kd from potentiometer
   pinMode(PWMPin, OUTPUT);
   pinMode(DIRPin, OUTPUT);
   pinMode(estopRelay_pin, OUTPUT);
@@ -432,40 +467,37 @@ void transmissionServoSetup(){
   ledcAttachPin(transmissionSignalPin, PWM_CHANNEL);    // Attach the PWM channel to the output pin
 }
 void loop(){
-  unsigned long currentMillis = millis();
-  handleIncomingMsg();
+  currentMillis = millis();
+  //if ((currentMillis - prev_radio_msg) >= radioInterval){handleIncomingMsg();}  
+
+  if (received_flag) {
+    received_flag = false;
+    handleIncomingMsg();      // process the received packet
+  }
+
   nh.spinOnce();
-  chatter();
+  chatter(); 
   check_cmdvel();
-  check_gps_fix();
+  check_rosserial();
+  check_gps_fix();   
   check_LoRaRX();
-  get_control_paramaaters();
-  if ((currentMillis - prev_time_steer) >= steerInterval)
-  {
-    steerVehicle();
-  }
-  if ((currentMillis - prev_time_throttle) >= throttleInterval)
-  {
-    throttleVehicle();
-  }
-  if ((currentMillis - prev_time_reading) >= readingInterval)
-  {
-    getTractorData();
-  }
-  if ((currentMillis - prev_time_xmit) >= transmitInterval)
-  {
-    sendOutgoingMsg();
-  }
+  get_control_paramaters();
+  get_steer_angle();  
+  if ((currentMillis - prev_time_steer) >= steerInterval){steerVehicle();}
+  if ((currentMillis - prev_time_throttle) >= throttleInterval){throttleVehicle();}
+  if ((currentMillis - prev_time_reading) >= readingInterval){getTractorData();}
+  if ((currentMillis - prev_time_xmit) >= transmitInterval){sendOutgoingMsg();}
   // if ((currentMillis - prev_time_printinfo)   >= infoInterval)      {print_Info_messages();}
-  if ((currentMillis - prev_time_OLED) >= OLEDInterval)
-  {
-    displayOLED();
-  }
+  if ((currentMillis - prev_time_OLED) >= OLEDInterval){displayOLED();}
+  if ((currentMillis - loop_timer_start)>= loop_timer_Interval){calc_loop_avg();}
+  loop_count = loop_count + 1;
 }
 void InitLoRa()
 { // initialize SX1276 with default settings
   // Serial.print(F("[SX1276] Initializing ... "));
   int state = radio.begin();
+  radio.setDio0Action(receivePacket, RISING);
+
   if (state == RADIOLIB_ERR_NONE)
   {
     // Serial.println(F("success!"));
@@ -537,16 +569,13 @@ void InitLoRa()
       ;
   }
 
-  delay(3000);
+  delay(1000);
+  radio.startReceive();
 }
 
 void ROSsetup()
 {
   nh.initNode();
-  while (!nh.connected()) {    // Wait for the node to be connected
-    nh.spinOnce();
-    delay(100);
-  }  
   nh.subscribe(cmd_vel_sub);
   nh.subscribe(left_speed_sub);
   nh.subscribe(right_speed_sub);
@@ -589,55 +618,54 @@ void sendOutgoingMsg()
     // Serial.println(state);
   }
   TractorData.counter++;
+  prev_time_xmit = millis();
 }
 void handleIncomingMsg()
 {
-  int state = radio.receive(tx_RadioControlData_buf, RadioControlData_message_len);
-  // Serial.print(F("state (")); Serial.print(state); Serial.println(F(")"));
-  if (state == RADIOLIB_ERR_NONE)
-  { // packet was successfully received
-    memcpy(&RadioControlData, tx_RadioControlData_buf, RadioControlData_message_len);
-    safety_flag_LoRaRx = true;
-    lastLoraRxTime = millis();
-    if (RadioControlData.estop == 0)
-    {
-      eStopRoutine();
+  //snprintf(log_buf, sizeof(log_buf), "radio available: %d ", radio.available());
+  //nh.logwarn(log_buf);
+  //int state = 0;  
+  int rx_bytes_avail = radio.available();
+  //if (rx_bytes_avail > 0){
+    snprintf(log_buf, sizeof(log_buf), "bytes of radio data available: %d ", rx_bytes_avail);
+    nh.logwarn(log_buf);  
+  //  state = radio.receive(tx_RadioControlData_buf, RadioControlData_message_len);
+    /*
+    Here are the possible return values and their meanings:
+    RADIOLIB_ERR_NONE (value = 0): The reception was successful and the buffer contains the received data.
+    RADIOLIB_ERR_CRC_MISMATCH (value = 1): The reception was unsuccessful due to a CRC error. The buffer may contain partial or incorrect data.
+    RADIOLIB_ERR_RX_TIMEOUT (value = 2): The reception was unsuccessful because the timeout period elapsed before a message was received. The buffer may contain partial or incorrect data.
+    RADIOLIB_ERR_INVALID_MODE (value = 3): The radio is in an invalid mode for the reception operation.
+    RADIOLIB_ERR_PACKET_TOO_LONG (value = 4): The received packet was too long to fit in the buffer.    
+    */
+    // Serial.print(F("state (")); Serial.print(state); Serial.println(F(")"));
+    if (state == RADIOLIB_ERR_NONE){ // packet was successfully received
+      memcpy(&RadioControlData, tx_RadioControlData_buf, RadioControlData_message_len);
+      safety_flag_LoRaRx = true;
+      lastLoraRxTime = millis();
+      if (RadioControlData.estop == 0){
+        eStopRoutine();
+      } else {
+        digitalWrite(estopRelay_pin, HIGH);
+      }
+      digitalWrite(led, HIGH);
     }
-    else
-    {
-      String message = "";
-      message = "6: Radio Transmission good, disabling eStop, Relay 2 led OFF";
-      message.toCharArray(charBuf, message.length() + 1);
-      str_msg.data = charBuf;
-      chatter_pub.publish(&str_msg);
-      digitalWrite(estopRelay_pin, HIGH);
-    }
-    digitalWrite(led, HIGH);
-  }
-  else if (state == RADIOLIB_ERR_RX_TIMEOUT)
-  { // timeout occurred while waiting for a packet
-    // Serial.print(F("waiting..."));
-    safety_flag_LoRaRx = false;
-  }
-  else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-  { // packet was received, but is malformed
-    // Serial.println(F("nothing received, no timeout, but CRC error!"));
-    safety_flag_LoRaRx = false;
-  }
-  else
-  { // some other error occurred
-    // Serial.print(F("nothing received, no timeout, printing failed code "));
-    // Serial.println(state);
-    safety_flag_LoRaRx = false;
-  }
+  //} 
+  else if (state == RADIOLIB_ERR_RX_TIMEOUT){ // timeout occurred while waiting for a packet
+      safety_flag_LoRaRx = false;
+  } else if (state == RADIOLIB_ERR_CRC_MISMATCH){ // packet was received, but is malformed
+      safety_flag_LoRaRx = false;
+  } else { // some other error occurred
+      safety_flag_LoRaRx = false;
+  }  
 }
 
 void steerVehicle()
 {
-
-  //kp = mapfloat(analogRead(mode_pin), 0, 4095, 100, 600);  // no longer using manual input 3/9/23
-  //ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
-  //kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
+  //steer_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 600);
+  steer_kp = 232;
+  steer_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, 0.0003);
+  steer_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
 
   if ((RadioControlData.control_mode == 2) && safety_flag_LoRaRx && safety_flag_cmd_vel)
   {
@@ -651,8 +679,9 @@ void steerVehicle()
   {
     setPoint = 0;
   }
-  steering_actual_pot = analogRead(steer_angle_pin);
-  steering_actual_angle = mapfloat(steering_actual_pot, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
+ 
+ // steering_actual_pot = analogRead(steer_angle_pin);  // now the pot is read in the function that smooths the output
+  steering_actual_angle = mapfloat(filtered_steer_pot_int, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
   steer_effort_float = computePID(steering_actual_angle);
   steer_effort = steer_effort_float;
   /*  Safety clamp:  The max_power_limit could be as high as 255 which
@@ -665,11 +694,6 @@ void steerVehicle()
     steer_effort = motor_power_limit;
     }
 
-/*
-I have to switch the steering around.  Specifically I previously thought negative angular z values
-represented a turn to the left.  Now I know they represent a turn to the right and vice versa.
-I'm going to change line 601 and 606 from HIGH to LOW and LOW to HIGH respectively.
-*/
   if (error > tolerance){
     digitalWrite(DIRPin, LOW); // steer right - channel B led is lit; Red wire (+) to motor; positive voltage
     // if ((steering_actual_pot > left_limit_pot) || (steering_actual_pot < right_limit_pot)) {steer_effort = 0;}  // safety check
@@ -684,18 +708,19 @@ I'm going to change line 601 and 606 from HIGH to LOW and LOW to HIGH respective
     // analogWrite(PWMPin, steer_effort);       // Turn the motor off
   }
   prev_time_steer = millis();
+ 
 } // end of steerVehicle
 
 void throttleVehicle(){
   // for tuning purposes get the PID values from potentiometers
-  trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 200); 
-  controller_trans.setKp(trans_kp);
-  trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .0001);
+  //trans_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 200); 
+ // controller_trans.setKp(trans_kp);
+ // trans_ki = mapfloat(analogRead(throttle_pot_pin), 0, 4095, 0, .0001);
   // trans_ki = .01;
-  controller_trans.setKi(trans_ki);  
-  trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10000);
+ // controller_trans.setKi(trans_ki);  
+ // trans_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 10000);
   //trans_kd = 15;
-  controller_trans.setKd(trans_kd);
+ // controller_trans.setKd(trans_kd);
   tranmissionLogicflag = 0;
   actual_speed = (left_speed + right_speed) / 2.0;
   //actual_speed = right_speed;  // just one wheel for testing on jacks  
@@ -745,7 +770,9 @@ void throttleVehicle(){
   digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
   ledcWrite(PWM_CHANNEL, transmissionServoValue);       // write PWM value to transmission servo
   transmission_servo_msg.data = transmissionServoValue;  //cmd_vel_time_diff
-  transmission_servo_pub.publish(&transmission_servo_msg);
+  if (rosserial_avail_sw == true){
+    transmission_servo_pub.publish(&transmission_servo_msg);
+  }
   prev_time_throttle = millis();
   //  publish transmissionServoValue  
 }
@@ -758,12 +785,12 @@ double computePID(float inp)
   error = setPoint - inp;                                          // determine error
   cumError += error * elapsedTime;                                 // compute integral
   rateError = (error - lastError) / elapsedTime;                   // compute derivative
-  float out = ((kp * error) + (ki * cumError) + (kd * rateError)); // PID output
+  float out = ((steer_kp * error) + (steer_ki * cumError) + (steer_kd * rateError)); // PID output
   lastError = error;                                               // remember current error
   previousTime = currentTime;                                      // remember current time
   return out;                                                    // have function return the PID output
 }
-
+/*
 double trans_computePID(float trans_inp)
 {
   trans_currentTime = millis();                                          // get current time
@@ -776,6 +803,7 @@ double trans_computePID(float trans_inp)
   trans_previousTime = trans_currentTime;                                                               // remember current time
   return out;                                                                                     // have function return the PID output
 }
+*/
 
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max)
 {
@@ -790,11 +818,13 @@ void eStopRoutine()
   ledcWrite(PWM_CHANNEL, transmissionServoValue);
   delay(500);
   digitalWrite(transmissionPowerPin, HIGH); // turn power off to transmission servo
-  String message = "";
-  message = "5: e-Stop routine called - relay 2 led should is ON";
-  message.toCharArray(charBuf, message.length() + 1);
-  str_msg.data = charBuf;
-  chatter_pub.publish(&str_msg);
+  if (rosserial_avail_sw == true){
+    String message = "";
+    message = "5: e-Stop routine called - relay 2 led should is ON";
+    message.toCharArray(charBuf, message.length() + 1);
+    str_msg.data = charBuf;
+    chatter_pub.publish(&str_msg);
+  }
 }
 void startOLED()
 {
@@ -839,15 +869,15 @@ void displayOLED()
   display.setCursor(0, row_5);
   display.print("P");
   display.setCursor(10, row_5);
-  display.print(kp, 2);
+  display.print(steer_kp, 2);
   display.setCursor(50, row_5);
   display.print("I");
   display.setCursor(60, row_5);
-  display.print(ki, 5);
+  display.print(steer_ki, 5);
   display.setCursor(0, row_6);
   display.print("D");
   display.setCursor(10, row_6);
-  display.print(kd, 2);
+  display.print(steer_kd, 2);
   display.setCursor(0, row_7);
   display.print("Mode SW:");
   display.setCursor(58, row_7);
@@ -855,6 +885,7 @@ void displayOLED()
   // display.setCursor(0,57);     display.print("T cntr:");    display.setCursor(58,57);     display.print(TractorData.counter);
   display.display();
   //  Serial.print(", TractorData.counter: "); Serial.print(TractorData.counter);
+  prev_time_OLED = millis();
 }
 
 void check_LoRaRX(){
@@ -905,7 +936,7 @@ void velocityControl(){
     }
 }
 
-
+/*
 void velocityControl2(){
   tranmissionLogicflag = 9;
   if (linear_x > .05)
@@ -939,6 +970,8 @@ void velocityControl2(){
     error_sum = 0;
   }
 }
+*/
+
 void velocityControl3(){
 tranmissionLogicflag = 10;  
 if (linear_x >= 1) {
@@ -965,12 +998,12 @@ if (linear_x >= 1) {
   }
 }
 
-void get_control_paramaaters() {
-  if (millis() - prev_time_stamp_params >= PARAMS_UPDATE_INTERVAL) {  // retrieve paramaters
+void get_control_paramaters() {
+  if ((millis() - prev_time_stamp_params >= PARAMS_UPDATE_INTERVAL) && (rosserial_avail_sw == true)){  // retrieve paramaters
     prev_time_stamp_params = millis();
     rosserial_speed_success_sw = nh.getParam("/speed_params", speed_params_array, NUM_SPEED_PARAMS);
     char buffer[150];
-    sprintf(buffer, "speed_params retrieval - transmissionFullReversePos :%d, transmissionNeutralPos: %d, transmissionFullForwardPos: %d", speed_params_array[0], speed_params_array[2], speed_params_array[6]);
+    sprintf(buffer, "speed_params retrieval - Full Reverse:%d, Neutral: %d, Full Forward: %d", speed_params_array[0], speed_params_array[2], speed_params_array[6]);
     nh.loginfo(buffer);
     if (rosserial_speed_success_sw) {
       rosserial_safety_sw = true;
@@ -993,4 +1026,43 @@ void get_control_paramaaters() {
   transmission075ForwardPos  = speed_params_array[5];
   transmissionFullForwardPos = speed_params_array[6];
   }
-}  
+}
+
+void check_rosserial(){
+  rosserial_avail_sw = true;
+ // if (nh.connected()) {rosserial_avail_sw = true;} else {rosserial_avail_sw = false;}  
+}
+void get_steer_angle() {
+//  snprintf(log_buf, sizeof(log_buf), "currentMillis: %d", currentMillis);
+//  nh.logwarn(log_buf); 
+  if ((currentMillis - prev_time_read_steer) >= read_steerInterval) {
+   // snprintf(log_buf, sizeof(log_buf), "in get_steer_angle");
+   // nh.logwarn(log_buf);  
+    steering_actual_pot = analogRead(steer_angle_pin); // read unfiltered angle
+    filtered_steering_pot_float = (1 - gain) * prev_angle + gain * steering_actual_pot; // update filtered angle
+    filtered_steer_pot_int = round(filtered_steering_pot_float);
+    prev_angle = filtered_steering_pot_float; // store filtered angle for next iteration
+    prev_time_read_steer = millis();
+  }
+  /* My low-pass filter uses a gain which is based on the formula 
+  gain = sampling rate / (sampling rate + cutoff) and the given values of 0.05 sampling 
+  rate (i.e. sampling rate = 1 / 20 Hz = 0.05 seconds) and cutoff of .45 which is simply 
+  a test.  A cutoff of .45 represents a cutoff frequency of the low-pass filter 
+  of 0.35 Hz (1 / (2π * 0.45) = 0.35 Hz)  I want the response to be slower which is why 
+  I'm OK with .45.  */
+}
+void calc_loop_avg(){
+    float avg_time = (float)(millis() - loop_timer_start) / loop_count;      // calculate average loop time
+    snprintf(log_buf, sizeof(log_buf), "loop avg speed: %.2f ms", avg_time);  // print average loop time to serial monitor
+    nh.logwarn(log_buf);      
+    loop_count = 0;      // reset loop count and timer
+    loop_timer_start = millis();  
+}
+void receivePacket(void) {
+  noInterrupts();
+  state = radio.receive(tx_RadioControlData_buf, RadioControlData_message_len);   // read the packet into the buffer
+  if (state == RADIOLIB_ERR_NONE) {  // check if the packet was received successfully
+    received_flag = true;  // set the received flag
+  }
+  interrupts();  // enable interrupts again
+}

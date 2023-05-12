@@ -143,7 +143,7 @@ void setup(){
   Serial.begin(115200);
   delay(5000);
   LoRa_setup();
-  //InitLoRa();
+  //InitLoRa(); // This did not work, but I'm not sure why; Since the default gives me 2Hz I'm going to move on
 }
 
 void loop(){

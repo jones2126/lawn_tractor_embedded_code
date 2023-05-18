@@ -80,5 +80,10 @@
 			"name": "ttgo_LoRa_receiver_2",
 			"path": "ttgo_LoRa_receiver_2"
 		}
-	]
+	],
+	"settings": {
+		"files.associations": {
+			"sstream": "cpp"
+		}
+	}
 }

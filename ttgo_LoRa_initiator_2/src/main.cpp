@@ -1,22 +1,16 @@
 #include <Arduino.h>
 /* Credit: https://github.com/jgromes/RadioLib/wiki/Default-configuration#sx127xrfm9x---lora-modem
 
-to do:
-have the send and receive use data structures
-- Get the definitions
-- Replace the transmit and receive
-- Include the memcpy
-
 */
 
 #include <RadioLib.h>
 SX1276 radio = new Module(18, 26, 14, 33);
 int transmissionState = RADIOLIB_ERR_NONE;
-bool transmit_attempted = false;
-volatile bool handleInteruptFlag = false;
+bool transmitFlag = false;
+volatile bool operationDone = false;
 int receivedCounter;
-char msg_buf[60];
-
+char msg_buf[256];
+int readState;
 
 /////////////////////// data structures ///////////////////////
 struct RadioControlStruct {
@@ -28,18 +22,9 @@ struct RadioControlStruct {
   byte estop;
   byte control_mode;
   unsigned long counter;
-} RadioControlData = {
-    0.0f,    // steering_val
-    0.0f,    // throttle_val
-    0.0f,    // press_norm
-    0.0f,    // humidity
-    0.0f,    // TempF
-    0,       // estop
-    0,       // control_mode
-    0        // counter
-};
-uint8_t RadioControlData_message_len = sizeof(RadioControlData);
-uint8_t tx_RadioControlData_buf[sizeof(RadioControlData)] = {0};
+  byte terminator;  // exists only to resolve a transmission length issue
+} RadioControlData = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 6, 7, 8, 9};
+/* RadioControlData = {steering_val, throttle_val, press_norm, humidity, TempF, estop, control_mode, counter} */
 
 struct TractorDataStruct {
   float speed;
@@ -47,54 +32,93 @@ struct TractorDataStruct {
   float voltage;
   int8_t gps_rtk_status;
   unsigned long counter;
-} TractorData = {
-    0.0f,        // speed
-    0.0f,        // heading
-    0.0f,        // voltage
-    0,           // gps_rtk_status
-    0            // counter
-};
+} TractorData = {0.0f, 0.0f, 0.0f, 0, 0};
+/* TractorData = {speed, heading, voltage, gps_rtk_status, counter} */
 uint8_t TractorData_message_len = sizeof(TractorData);
 uint8_t tx_TractorData_buf[sizeof(TractorData)] = {0};
 
 ///////////////////////////////////////////////////////////
 
-// this function is called when a complete packet is transmitted by the module
-// IMPORTANT: this function MUST be 'void' type and MUST NOT have any arguments!
-#if defined(ESP8266) || defined(ESP32)
-  ICACHE_RAM_ATTR
-#endif
-void handleInterupt(void) {
-  handleInteruptFlag = true;
+// Function to convert RadioControlStruct to a comma-delimited string
+String convertToCSV(const RadioControlStruct& data) {
+  String csvString = String(data.steering_val) + ","
+                     + String(data.throttle_val) + ","
+                     + String(data.press_norm) + ","
+                     + String(data.humidity) + ","
+                     + String(data.TempF) + ","
+                     + String(data.estop) + ","
+                     + String(data.control_mode) + ","
+                     + String(data.counter) + ","
+                     + String(data.terminator);
+  return csvString;
 }
+
+void setFlag(void) {
+  operationDone = true;
+}
+
+void unpackTractorCSV(const String &csvString, TractorDataStruct &data){
+  char csvCopy[csvString.length() + 1];    // Create a mutable copy of the CSV string
+  csvString.toCharArray(csvCopy, sizeof(csvCopy));
+  char *token = strtok(csvCopy, ",");    // Use strtok to tokenize the string based on commas
+  int tokenCount = 0;
+  while (token != NULL && tokenCount < 5) {
+    switch (tokenCount) {
+      case 0:
+        data.speed = atof(token);
+        break;
+      case 1:
+        data.heading = atof(token);
+        break;
+      case 2:
+        data.voltage = atof(token);
+        break;
+      case 3:
+        data.gps_rtk_status = static_cast<int8_t>(atoi(token));
+        break;
+      case 4:
+        data.counter = strtoul(token, NULL, 10);
+        break;
+    }
+    token = strtok(NULL, ",");
+    tokenCount++;
+  }
+}
+
+void transmitRadioControlData(){
+  String csvString = convertToCSV(RadioControlData);
+  int msg_length = csvString.length();
+  byte txBuffer[msg_length];
+  csvString.getBytes(txBuffer, msg_length);
+  Serial.println("Sending data: (" + csvString + ")");   
+  int transmissionState = radio.startTransmit(txBuffer, msg_length);
+  transmitFlag = true;    
+}
+
 void tx_rx_LoRa(){
-  //int state = 0;
-  if (handleInteruptFlag) {
-    handleInteruptFlag = false;
-    if (transmit_attempted) {
-      if (transmissionState == RADIOLIB_ERR_NONE) {        // the previous operation was transmission, listen for response
-        Serial.println(F("transmission successfully sent !"));
-      } else {
-        Serial.print(F("failed, code "));
+  if (operationDone) {
+    operationDone = false;
+    if (transmitFlag) {
+      if (transmissionState != RADIOLIB_ERR_NONE) {        // the previous operation was transmission, listen for response
+        Serial.print(F("attempted xmit, but failed; transmissionState code: "));
         Serial.println(transmissionState);
-      }
+      } 
       radio.startReceive();
-      transmit_attempted = false;
+      transmitFlag = false;
     } else {  // handle the incoming message that is waiting
-        int receive_state = radio.receive(tx_TractorData_buf, TractorData_message_len);
-        memcpy(&TractorData, tx_TractorData_buf, TractorData_message_len);
-        if (receive_state == RADIOLIB_ERR_NONE){
-          Serial.println(F("[SX1278] Received packet!"));
+        String str;
+        readState = radio.readData(str);        
+        if (readState == RADIOLIB_ERR_NONE) {
+          str = str.substring(0, str.length() - 1);  // I had issue and added 'terminator' to the end of the structure
+          Serial.println("Received data: (" + str + ")");      
+          unpackTractorCSV(str, TractorData);
+          RadioControlData.counter = TractorData.counter;        
+          transmitRadioControlData();      
         } else {
-          Serial.print(F("receive function returned failed code "));
-          Serial.println(transmissionState);
+          Serial.print(F("failed, readState code "));
+          Serial.println(readState);
         }
-        Serial.print(F("[SX1278] Sending another packet ... "));
-        RadioControlData.counter = TractorData.counter;
-        memcpy(tx_RadioControlData_buf, &RadioControlData, RadioControlData_message_len);
-        transmissionState = radio.transmit(tx_RadioControlData_buf, RadioControlData_message_len);
-        transmit_attempted = true;
-      }
+    }
   }
 }
 
@@ -102,24 +126,21 @@ void LoRa_setup(){
   Serial.print(F("[SX1278] Initializing ... "));
   int state = radio.begin();
   if (state == RADIOLIB_ERR_NONE) {
-    Serial.println(F("success!"));
+    Serial.println(F("radio.begin() success!"));
   } else {
-    Serial.print(F("failed, code "));
+    Serial.print(F("failed, radio.begin() code "));
     Serial.println(state);
     while (true);
   }
-  radio.setDio0Action(handleInterupt, RISING);
+  radio.setDio0Action(setFlag, RISING);
   Serial.print(F("[SX1278] Sending first packet ... "));
-  //RadioControlData.control_mode = 1;
-  memcpy(tx_RadioControlData_buf, &RadioControlData, RadioControlData_message_len);
-  transmissionState = radio.transmit(tx_RadioControlData_buf, RadioControlData_message_len); 
-  transmit_attempted = true;  
+  RadioControlData.counter = 1;
+  transmitRadioControlData();
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(8000);
-  Serial.print(F("ttgo_LoRa_test_receiver starting ... "));
+  delay(20000);  // I put this delay in so I can start the serial monitor on the receiver if needed
   LoRa_setup();
 }
 

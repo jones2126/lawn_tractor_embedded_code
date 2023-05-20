@@ -91,7 +91,7 @@ void transmitRadioControlData(){
   byte txBuffer[msg_length];
   csvString.getBytes(txBuffer, msg_length);
   Serial.println("Sending data: (" + csvString + ")");   
-  int transmissionState = radio.startTransmit(txBuffer, msg_length);
+  transmissionState = radio.startTransmit(txBuffer, msg_length);
   transmitFlag = true;    
 }
 

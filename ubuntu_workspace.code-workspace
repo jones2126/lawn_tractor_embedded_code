@@ -95,6 +95,22 @@
 		{
 			"name": "ttgo_LoRa_initiator_rosserial",
 			"path": "ttgo_LoRa_initiator_rosserial"
+		},
+		{
+			"name": "ttgo_espnow_radio_v1",
+			"path": "ttgo_espnow_radio_v1"
+		},
+		{
+			"name": "ttgo_espnow_tractor_v1",
+			"path": "ttgo_espnow_tractor_v1"
+		},
+		{
+			"name": "ttgo_espnow_get_mac",
+			"path": "ttgo_espnow_get_mac"
+		},
+		{
+			"name": "ttgo_serial_xfer_test",
+			"path": "ttgo_serial_xfer_test"
 		}
 	],
 	"settings": {

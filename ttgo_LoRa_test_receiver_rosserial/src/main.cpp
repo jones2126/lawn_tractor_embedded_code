@@ -116,5 +116,10 @@ void loop(){
   tx_rx_LoRa();
   report_out();
   check_message_cnt();
-  //nh.spinOnce(); // Handle ROS communication
+  int overflow_count = nh.getHardware()->getBufferOverflow();
+  if(overflow_count > 0) {
+      snprintf(warn_msg, sizeof(warn_msg), "Buffer overflow count: %d", overflow_count);
+      nh.logwarn(warn_msg);
+  }  
+  nh.spinOnce(); // Handle ROS communication
 }

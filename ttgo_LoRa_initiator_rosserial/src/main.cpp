@@ -17,11 +17,10 @@ void tx_rx_LoRa(){
   if (operationDone) {
     operationDone = false;
     if (transmitFlag) {
-      if (transmissionState == RADIOLIB_ERR_NONE) {        // the previous operation was transmission, listen for response
-        Serial.println("transmission successfully sent !");
-      } else {
-        Serial.print("failed, code ");
-        Serial.println(transmissionState);
+      if (transmissionState != RADIOLIB_ERR_NONE) {        // the previous operation was transmission, listen for response
+        snprintf(msg_buf, sizeof(msg_buf), "failed, code: %d ", transmissionState);
+        //Serial.print("failed, code ");
+        //Serial.println(transmissionState);
       }
       radio.startReceive();
       transmitFlag = false;
@@ -50,18 +49,17 @@ void tx_rx_LoRa(){
 }
 
 void LoRa_setup(){
-  Serial.print("[SX1278] Initializing ... ");
+  //Serial.print("[SX1278] Initializing ... ");
   int state = radio.begin();
-  if (state == RADIOLIB_ERR_NONE) {
-    Serial.println("success!");
-  } else {
-    Serial.print("failed, code ");
-    Serial.println(state);
+  if (state != RADIOLIB_ERR_NONE) {
+    snprintf(msg_buf, sizeof(msg_buf), "failed, code: %d ", state);
+    //Serial.print("failed, code ");
+    //Serial.println(state);
     while (true);
   }
   radio.setSyncWord(0x12);
   radio.setDio0Action(setFlag, RISING);
-  Serial.print("[SX1278] Sending first packet ... ");
+  //Serial.print("[SX1278] Sending first packet ... ");
   //snprintf(msg_buf, sizeof(msg_buf), "message from initiator #: %d ", 1);
   //transmissionState = radio.startTransmit(msg_buf);
 
@@ -73,9 +71,9 @@ void LoRa_setup(){
 }
 
 void setup() {
-  Serial.begin(115200);
-  delay(8000);
-  Serial.println("ttgo_LoRa_test_Initiator - starting LoRa Setup");
+  //Serial.begin(115200);
+  //delay(8000);
+  //Serial.println("ttgo_LoRa_test_Initiator - starting LoRa Setup");
 
   LoRa_setup();
 }

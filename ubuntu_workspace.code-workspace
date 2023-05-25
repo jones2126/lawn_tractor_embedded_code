@@ -111,6 +111,10 @@
 		{
 			"name": "ttgo_serial_xfer_test",
 			"path": "ttgo_serial_xfer_test"
+		},
+		{
+			"name": "ttgo_ping_pong",
+			"path": "ttgo_ping_pong"
 		}
 	],
 	"settings": {

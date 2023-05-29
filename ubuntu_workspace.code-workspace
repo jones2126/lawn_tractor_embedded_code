@@ -115,6 +115,18 @@
 		{
 			"name": "ttgo_ping_pong",
 			"path": "ttgo_ping_pong"
+		},
+		{
+			"name": "ttgo_test_2way_serial",
+			"path": "ttgo_test_2way_serial"
+		},
+		{
+			"name": "ttgo_tractor_v3",
+			"path": "ttgo_tractor_v3"
+		},
+		{
+			"name": "ttgo_radio_control_v3",
+			"path": "ttgo_radio_control_v3"
 		}
 	],
 	"settings": {

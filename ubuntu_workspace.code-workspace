@@ -127,6 +127,10 @@
 		{
 			"name": "ttgo_radio_control_v3",
 			"path": "ttgo_radio_control_v3"
+		},
+		{
+			"name": "ttgo_uart_loopback",
+			"path": "ttgo_uart_loopback"
 		}
 	],
 	"settings": {

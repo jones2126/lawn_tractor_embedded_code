@@ -28,7 +28,7 @@ that shows how to prepare an odom statement, which needs to be added to mine.
 #define AS5048_ADDRESS 0x40
 
 const int infoInterval = 10000;  // 100 = 1/10 of a second (i.e. 10 Hz)
-const int poll_AS5048B_Interval = 100; // 1000/10 or 10 Hz
+const int poll_AS5048B_Interval = 500; // 1000/500 or 2 Hz
 const float wheel_circumfrence = 1.59593; // the wheel has a diameter of 20" or 0.508 meters
 
 uint16_t current_position;
@@ -67,8 +67,9 @@ uint16_t AMS_AS5048B_readReg16() {  //reference: https://github.com/sosandroid/A
   Wire.write(AS5048B_ANGLMSB_REG);
   requestResult = Wire.endTransmission(false);
   if (requestResult){
-    Serial.print("I2C error: ");
-    Serial.println(requestResult);
+    //Serial.print("I2C error: ");
+    //Serial.println(requestResult);
+    nh.logwarn("I2C error for right speed sensor");
   }
   Wire.requestFrom(AS5048_ADDRESS, 2);
   for (byte i=0; i < 2; i++) {

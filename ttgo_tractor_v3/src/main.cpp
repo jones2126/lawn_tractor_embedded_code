@@ -225,7 +225,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 060523");
+    display.print("Tractor Cntrl 060723");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);

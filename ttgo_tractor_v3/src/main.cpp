@@ -150,7 +150,7 @@ int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
 
 // variables for parameter settings 
-const int NUM_SPEED_PARAMS = 7;
+const int NUM_SPEED_PARAMS = 8;
 int speed_params_array[NUM_SPEED_PARAMS] = {
   transmissionFullReversePos,
   transmission075ReversePos,
@@ -158,13 +158,15 @@ int speed_params_array[NUM_SPEED_PARAMS] = {
   transmission025ForwardPos,
   transmission050ForwardPos,
   transmission075ForwardPos,
-  transmissionFullForwardPos
+  transmissionFullForwardPos,
+  0,
   };
 
 // definitions for USB to TTL UART converter to provide a second Serial connection
 #define RX_PIN 21
 #define TX_PIN 13
 HardwareSerial USB2TTLSerial(2);
+int dummyPlaceholder = 0;
 
 ///////////////////////  end of declarations //////////////////////////////////
 
@@ -309,7 +311,8 @@ void printInfoMsg() {
                   + ", Transmission Servo:" + transmissionServoValue
                   + ", steering_pot smooth " + String(filtered_steer_pot_int)
                   + ", steering_pot raw " + String(steering_actual_pot)
-                  + ", gps_rtk_status " + String(TractorData.gps_rtk_status);            
+                  + ", gps_rtk_status " + String(gps_status); 
+                  //+ ", gps_rtk_status " + String(TractorData.gps_rtk_status);            
                  //  + ", vel_effort:" + vel_effort;
                   // + ", pid output " + String(trans_pid_output, 2);
     Serial.println(message);    
@@ -321,7 +324,11 @@ void printInfoMsg() {
     Serial.print(" loops: ");
     Serial.print(loopCount);
     Serial.print(" | Tx counter: ");
-    Serial.println(TractorData.counter);
+    Serial.print(TractorData.counter);
+    Serial.print(" | servo min/max: ");
+    Serial.print(transmissionFullReversePos); 
+    Serial.print(" / ");
+    Serial.println(transmissionFullForwardPos); 
     loopCount = 0;
     lastPrintMillis = currentMillis;  // reset timer
   }
@@ -330,50 +337,59 @@ void printInfoMsg() {
 void getUSB2TTLSerialData(){
   if (USB2TTLSerial.available() > 0) {
     String incomingData = USB2TTLSerial.readStringUntil('\n');
+    char incomingDataChar[100];
+    incomingData.toCharArray(incomingDataChar, 100);
+    //Serial.println(incomingData);
     int commaIndex = incomingData.indexOf(',');
     if (commaIndex != -1) {
       messageType = incomingData.substring(0, commaIndex).toInt();  // change toInt() for messageType
-
       if (messageType == 1) {
-        int nextCommaIndex = incomingData.indexOf(',', commaIndex + 1);
-        linear_x = incomingData.substring(commaIndex + 1, nextCommaIndex).toFloat();
-        commaIndex = nextCommaIndex;
-        nextCommaIndex = incomingData.indexOf(',', commaIndex + 1);
-        angular_z = incomingData.substring(commaIndex + 1, nextCommaIndex).toFloat();
-        commaIndex = nextCommaIndex;
-        nextCommaIndex = incomingData.indexOf(',', commaIndex + 1);
-        left_speed = incomingData.substring(commaIndex + 1, nextCommaIndex).toFloat();
-        nextCommaIndex = incomingData.indexOf(',', commaIndex + 1);
-        right_speed = incomingData.substring(commaIndex + 1, nextCommaIndex).toFloat();
-        commaIndex = nextCommaIndex;
-        nextCommaIndex = incomingData.indexOf(',', commaIndex + 1);
-        gps_status = incomingData.substring(commaIndex + 1, nextCommaIndex).toInt();  // parsing for 'gps_status'
-        commaIndex = nextCommaIndex;
-        gpsStatusAge = incomingData.substring(commaIndex + 1).toFloat();
-
-
+        //char incomingDataChar[100];
+        //incomingData.toCharArray(incomingDataChar, 100);
+        sscanf(incomingDataChar, "1,%f,%f,%f,%f,%d,%f", 
+          &linear_x, 
+          &angular_z, 
+          &left_speed, 
+          &right_speed, 
+          &gps_status, 
+          &gpsStatusAge);
+        Serial.print("gps_status: ");
+        Serial.println(gps_status);
         prev_time_cmdvel = millis();
         incomingMsgCount++;  // increment the count of incoming messages
       } 
       else if (messageType == 2) {
+/*
         int startIndex = commaIndex + 1;
+            
         for (int i = 0; i < NUM_SPEED_PARAMS; i++) {
-          commaIndex = incomingData.indexOf(',', startIndex);
+          commaIndex = incomingData.indexOf(',', startIndex);         
           if (commaIndex != -1) {
             speed_params_array[i] = incomingData.substring(startIndex, commaIndex).toInt();
             startIndex = commaIndex + 1;
           } else {
-            // Handle the case where there are fewer than 7 speed parameters in the message
+            // For the last value, we don't expect another comma so we take the rest of the string.
+            speed_params_array[i] = incomingData.substring(startIndex).toInt();
             break;
           }
         }
+
         transmissionFullReversePos = speed_params_array[0];
         transmission075ReversePos  = speed_params_array[1];
         transmissionNeutralPos     = speed_params_array[2];
         transmission025ForwardPos  = speed_params_array[3];
         transmission050ForwardPos  = speed_params_array[4];
         transmission075ForwardPos  = speed_params_array[5];
-        transmissionFullForwardPos = speed_params_array[6];        
+        transmissionFullForwardPos = speed_params_array[6];  
+*/
+        sscanf(incomingDataChar, "2,%d,%d,%d,%d,%d,%d,%d", 
+          &transmissionFullReversePos, 
+          &transmission075ReversePos, 
+          &transmissionNeutralPos, 
+          &transmission025ForwardPos, 
+          &transmission050ForwardPos, 
+          &transmission075ForwardPos, 
+          &transmissionFullForwardPos);
       }
     }
   }

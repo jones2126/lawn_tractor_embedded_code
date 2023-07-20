@@ -98,7 +98,7 @@ unsigned long prev_time_tansmission_control = 0;
 const long transmissionInterval = 200;
 const long cmd_velInterval = 1000;
 unsigned long lastLoraRxTime = 0;
-const long minlastLoraRx = 1000;
+const long minlastLoraRx = 3000;
 const unsigned long receiveTimeout = 250;  // timeout in milliseconds
 unsigned long lastPacketReceivedTime = 0; 
 
@@ -115,12 +115,14 @@ float gain = 0.1; // filter gain
 int filtered_steer_pot_int = 0;
 float filtered_steering_pot_float = 0.0; // current filtered angle
 float prev_angle = 0; // previous filtered angle
-float safety_margin_pot = 10;                   // reduce this once I complete field testing
-float left_limit_pot = 3470 - safety_margin_pot; // the actual extreme limit is 3400
-float left_limit_angle = 0.73;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
-float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
-float right_limit_angle = -0.73;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
-float tolerance = 0.007; // 1% of 0.73
+//float safety_margin_pot = 10;                   // reduce this once I complete field testing
+//float left_limit_pot = 3470 - safety_margin_pot; // the actual extreme limit is 3400
+float left_limit_pot = 3158;
+float left_limit_angle = 0.96;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
+//float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
+float right_limit_pot = 798;
+float right_limit_angle = -0.96;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
+float tolerance = 0.009; // 1% of 0.96
 const int motor_power_limit = 150;
 
 // steering PID variables
@@ -137,15 +139,15 @@ int tranmissionLogicflag = 0;
 float cumSteerPidError, rateError;
 float actualSpeed;
 
-int transmissionFullReversePos = 230;  
-int transmission075ReversePos  = 245;
-int transmissionFirstReversePos = 240; 
-int transmissionNeutralPos = 256;
-int transmissionFirstForwardPos = 275;
-int transmission025ForwardPos = 279;
-int transmission050ForwardPos = 287;
-int transmission075ForwardPos  = 291;
-int transmissionFullForwardPos = 294;  
+int transmissionFullReversePos = 250;  
+int transmission075ReversePos  = 258;
+//int transmissionFirstReversePos = 240; 
+int transmissionNeutralPos = 266;
+//int transmissionFirstForwardPos = 275;
+int transmission025ForwardPos = 295;
+int transmission050ForwardPos = 300;
+int transmission075ForwardPos  = 320;  // 1.0 m/s
+int transmissionFullForwardPos = 330;  // 1.8 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
 
@@ -227,7 +229,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 060723");
+    display.print("Tractor Cntrl 072023");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);
@@ -281,7 +283,7 @@ void TxRxLoRaMsgs(){
 }
 
 void printInfoMsg() {
-  if (currentMillis - lastPrintMillis >= 10000) {  // 10 seconds
+  if (currentMillis - lastPrintMillis >= 1000) {  // 1 seconds
     // average RSSI to include in a print statement
     float avgRSSI = 0;
     if (messageCount > 0) {
@@ -290,13 +292,13 @@ void printInfoMsg() {
     accumulatedRSSI = 0;
     messageCount = 0;
 
-    String message = "1: lnr.x: " + String(linear_x, 2)
+    String message = "1, lnr.x: " + String(linear_x, 2)
                    + ", ang.z: " + String(angular_z, 2)
                   + ", steer_effort: " + String(steer_effort_float, 2)
                   + ", steering_actual_angle: " + String(steering_actual_angle, 2)
                    + ", steer target: " + String(steerSetPoint, 2);
-    Serial.println(message);
-    message =      "2: mode: " + String(RadioControlData.control_mode)
+    //Serial.println(message);
+    message =      "2, mode: " + String(RadioControlData.control_mode)
                     + ", s_kp " + String(steer_kp, 2)    
                     + ", s_ki " + String(steer_ki, 6)
                     + ", s_kd " + String(steer_kd, 2)                                                                    
@@ -305,18 +307,35 @@ void printInfoMsg() {
                     + ", packet size: " + String(packetSize)                                       
                     + ", cmd_vel: " + String(safety_flag_cmd_vel);
                      
-    Serial.println(message);
+    //Serial.println(message);
 
-    message =      "3: Logic: " + String(tranmissionLogicflag)
-                  + ", Transmission Servo:" + transmissionServoValue
-                  + ", steering_pot smooth " + String(filtered_steer_pot_int)
-                  + ", steering_pot raw " + String(steering_actual_pot)
-                  + ", gps_rtk_status " + String(gps_status); 
-                  //+ ", gps_rtk_status " + String(TractorData.gps_rtk_status);            
-                 //  + ", vel_effort:" + vel_effort;
-                  // + ", pid output " + String(trans_pid_output, 2);
+    message =      "3," + String(tranmissionLogicflag)
+                  + "," + String(transmissionServoValue)
+                  + "," + String(filtered_steer_pot_int)
+                  + "," + String(steering_actual_pot)
+                  + "," + String(steerSetPoint)
+                  + "," + String(validatedMsgsHz)
+                  + "," + String(avgRSSI)
+                  + "," + String(safety_flag_LoRaRx)
+                  + "," + String(gps_status); 
+
+/*
+I want to send these data elements via Serial.println in a comma delimeted format:
+
+Transmission logic path being executed (tranmissionLogicflag) 
+Servo target position (transmissionServoValue)
+steering_pot smooth (filtered_steer_pot_int) 
+steering_pot raw  (steering_actual_pot) 
+Steer angle target (steerSetPoint) 
+Incoming message rate in Hz (validatedMsgsHz) 
+Radio signal strength (avgRSSI) 
+LoRa safety switch (safety_flag_LoRaRx) 
+gps_rtk_status (gps_status) 
+
+*/                  
     Serial.println(message);    
 
+/*
     Serial.print("Average RSSI: ");
     Serial.print(avgRSSI);
     Serial.print(" dBm | Rx Hz: ");
@@ -329,6 +348,7 @@ void printInfoMsg() {
     Serial.print(transmissionFullReversePos); 
     Serial.print(" / ");
     Serial.println(transmissionFullForwardPos); 
+*/
     loopCount = 0;
     lastPrintMillis = currentMillis;  // reset timer
   }
@@ -353,8 +373,8 @@ void getUSB2TTLSerialData(){
           &right_speed, 
           &gps_status, 
           &gpsStatusAge);
-        Serial.print("gps_status: ");
-        Serial.println(gps_status);
+       // Serial.print("gps_status: ");
+       // Serial.println(gps_status);
         prev_time_cmdvel = millis();
         incomingMsgCount++;  // increment the count of incoming messages
       } 
@@ -454,9 +474,9 @@ void steerVehicle(){
     //steer_kd = mapfloat(analogRead(steering_pot_pin), 0, 4095, 0, 2000);
 
     if ((RadioControlData.control_mode == 2) && safety_flag_LoRaRx && safety_flag_cmd_vel) {
-      steerSetPoint = angular_z; // value range -.73 to +.73
+      steerSetPoint = angular_z; // needs to be changed to ackerman steering angle
     } else if ((RadioControlData.control_mode == 1 && safety_flag_LoRaRx)) {
-      steerSetPoint = RadioControlData.steering_val; // value range needs to match cmd_vel range
+      steerSetPoint = RadioControlData.steering_val; // value range needs to match ackerman steering angle range
     } else {
       steerSetPoint = 0;
     }

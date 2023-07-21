@@ -97,7 +97,7 @@ int RSSI_test = 9;
 // used classifying results
 #define arraySize 10 // size of array a
 int SteeringPts[arraySize] = {0, 130, 298, 451, 1233, 2351, 3468, 4094, 4096, 4097};
-float SteeringValues[] = {0.73, 0.50, 0.25, 0, -0.25, -0.50, -0.73, -0.73, -0.73, 99};
+float SteeringValues[] = {0.96, 0.64, 0.32, 0, -0.32, -0.64, -0.96, -0.96, -0.96, 99};
 int Mode_SW_Pts[arraySize] = {0, 1500, 1750, 1950, 2000, 4000, 4001, 4002, 4096, 4097};
 int Mode_SW_Values[arraySize] = {2, 3, 0, 4, 5, 6, 7, 1, 8, 9};
 
@@ -260,7 +260,7 @@ void displayOLED() {
     // display.setCursor(0,0);
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Radio Cntrl 053123");
+    display.print("Radio Cntrl 072023");
     display.setCursor(0, row_2);
     display.print("RC Volt:");
     display.setCursor(58, row_2);

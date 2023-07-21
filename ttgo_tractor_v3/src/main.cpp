@@ -98,6 +98,7 @@ unsigned long prev_time_tansmission_control = 0;
 const long transmissionInterval = 200;
 const long cmd_velInterval = 1000;
 unsigned long lastLoraRxTime = 0;
+unsigned long ageLoraRx = 0;
 const long minlastLoraRx = 3000;
 const unsigned long receiveTimeout = 250;  // timeout in milliseconds
 unsigned long lastPacketReceivedTime = 0; 
@@ -268,6 +269,7 @@ void TxRxLoRaMsgs(){
         //Serial.println(message);        
         validatedMsgsQty++;  // increment the count of incoming messages
         calcQtyValidatedMsgs();  // calculate the frequency of validated messages
+        ageLoraRx = currentMillis - lastLoraRxTime;
         lastLoraRxTime = currentMillis;
         //state = SEND_STATE;
         lastPacketReceivedTime = currentMillis;  // Update last packet received time
@@ -317,6 +319,7 @@ void printInfoMsg() {
                   + "," + String(validatedMsgsHz)
                   + "," + String(avgRSSI)
                   + "," + String(safety_flag_LoRaRx)
+                  + "," + String(ageLoraRx) 
                   + "," + String(gps_status); 
 
 /*
@@ -330,6 +333,7 @@ Steer angle target (steerSetPoint) 
 Incoming message rate in Hz (validatedMsgsHz) 
 Radio signal strength (avgRSSI) 
 LoRa safety switch (safety_flag_LoRaRx) 
+Time delta between receiving LoRa messages (ageLoraRx) 
 gps_rtk_status (gps_status) 
 
 */                  

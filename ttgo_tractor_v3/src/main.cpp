@@ -142,12 +142,12 @@ float actualSpeed;
 
 int transmissionFullReversePos = 250;  
 int transmission075ReversePos  = 258;
-//int transmissionFirstReversePos = 240; 
+//int transmissionFirstReversePos = ??; 
 int transmissionNeutralPos = 266;
-//int transmissionFirstForwardPos = 275;
-int transmission025ForwardPos = 295;
-int transmission050ForwardPos = 300;
-int transmission075ForwardPos  = 320;  // 1.0 m/s
+//int transmissionFirstForwardPos = 303;
+int transmission025ForwardPos = 305;
+int transmission050ForwardPos = 312;
+int transmission075ForwardPos  = 315;  // 1.0 m/s
 int transmissionFullForwardPos = 330;  // 1.8 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
@@ -247,7 +247,8 @@ void displayOLED(){
 }
 
 void TxRxLoRaMsgs(){
-  unsigned long currentMillis = millis();
+  //unsigned long currentMillis = millis();
+  ageLoraRx = currentMillis - lastLoraRxTime;  
   packetSize = LoRa.parsePacket();
   switch (state) {
     case SEND_STATE:   // transmit LoRa data
@@ -269,7 +270,6 @@ void TxRxLoRaMsgs(){
         //Serial.println(message);        
         validatedMsgsQty++;  // increment the count of incoming messages
         calcQtyValidatedMsgs();  // calculate the frequency of validated messages
-        ageLoraRx = currentMillis - lastLoraRxTime;
         lastLoraRxTime = currentMillis;
         //state = SEND_STATE;
         lastPacketReceivedTime = currentMillis;  // Update last packet received time
@@ -320,7 +320,8 @@ void printInfoMsg() {
                   + "," + String(avgRSSI)
                   + "," + String(safety_flag_LoRaRx)
                   + "," + String(ageLoraRx) 
-                  + "," + String(gps_status); 
+                  + "," + String(gps_status) 
+                  + "," + String(RadioControlData.control_mode);
 
 /*
 I want to send these data elements via Serial.println in a comma delimeted format:

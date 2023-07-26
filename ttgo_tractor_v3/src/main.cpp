@@ -41,6 +41,7 @@ float gpsStatusAge = 0;
 float linear_x, angular_z;
 bool safety_flag_cmd_vel = false;
 unsigned long prev_time_cmdvel = 0;
+unsigned long age_of_cmd_vel = 0;
 
 // Data structure definition  ////////////////////////////////////
 struct RadioControlStruct {
@@ -96,7 +97,7 @@ unsigned long prev_time_steer = 0;
 const long steerInterval = 100;
 unsigned long prev_time_tansmission_control = 0;
 const long transmissionInterval = 200;
-const long cmd_velInterval = 1000;
+const long cmd_velInterval = 1500;
 unsigned long lastLoraRxTime = 0;
 unsigned long ageLoraRx = 0;
 const long minlastLoraRx = 3000;
@@ -125,6 +126,8 @@ float right_limit_pot = 798;
 float right_limit_angle = -0.96;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float tolerance = 0.009; // 1% of 0.96
 const int motor_power_limit = 150;
+int prevRadioCounter = 0;
+int qtyRadioRx = 0;
 
 // steering PID variables
 float elapsedTime;
@@ -230,7 +233,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 072023");
+    display.print("Tractor Cntrl 072623");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);
@@ -310,7 +313,11 @@ void printInfoMsg() {
                     + ", cmd_vel: " + String(safety_flag_cmd_vel);
                      
     //Serial.println(message);
-
+    qtyRadioRx = RadioControlData.counter - prevRadioCounter;
+    if (qtyRadioRx > 25){
+      qtyRadioRx = 25;
+    }
+    prevRadioCounter = RadioControlData.counter;
     message =      "3," + String(tranmissionLogicflag)
                   + "," + String(transmissionServoValue)
                   + "," + String(filtered_steer_pot_int)
@@ -321,7 +328,11 @@ void printInfoMsg() {
                   + "," + String(safety_flag_LoRaRx)
                   + "," + String(ageLoraRx) 
                   + "," + String(gps_status) 
-                  + "," + String(RadioControlData.control_mode);
+                  + "," + String(RadioControlData.control_mode)
+                  + "," + String(steering_actual_angle)
+                  + "," + String(safety_flag_cmd_vel)
+                  + "," + String(age_of_cmd_vel)
+                  + "," + String(qtyRadioRx); 
 
 /*
 I want to send these data elements via Serial.println in a comma delimeted format:
@@ -336,6 +347,8 @@ Radio signal strength (avgRSSI) 
 LoRa safety switch (safety_flag_LoRaRx) 
 Time delta between receiving LoRa messages (ageLoraRx) 
 gps_rtk_status (gps_status) 
+mode setting on RC controller(RadioControlData.control_mode)
+Current steer angle 0.96 to -0.96 (steering_actual_angle)
 
 */                  
     Serial.println(message);    
@@ -361,6 +374,7 @@ gps_rtk_status (gps_status) 
 
 void getUSB2TTLSerialData(){
   if (USB2TTLSerial.available() > 0) {
+    age_of_cmd_vel = millis() - prev_time_cmdvel;
     String incomingData = USB2TTLSerial.readStringUntil('\n');
     char incomingDataChar[100];
     incomingData.toCharArray(incomingDataChar, 100);
@@ -551,7 +565,7 @@ void control_transmission(){
 }
 
 void check_cmdvel(){
-  if (millis() - prev_time_cmdvel > cmd_velInterval){
+  if (age_of_cmd_vel > cmd_velInterval){
     linear_x = 0;
     angular_z = 0;
     safety_flag_cmd_vel = false;

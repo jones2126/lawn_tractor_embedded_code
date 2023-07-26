@@ -260,11 +260,11 @@ void displayOLED() {
     // display.setCursor(0,0);
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Radio Cntrl 072023");
+    display.print("Radio Cntrl 072623");
     display.setCursor(0, row_2);
     display.print("RC Volt:");
     display.setCursor(58, row_2);
-    display.print(TractorData.voltage); //
+    display.print(voltage_val);
     display.setCursor(0, row_3);
     display.print("RSSI:");
     display.setCursor(58, row_3);

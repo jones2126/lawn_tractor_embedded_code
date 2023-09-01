@@ -52,6 +52,7 @@ void check_cmdvel(){
 }
 
 ros::Subscriber<geometry_msgs::Twist> cmd_vel_sub("cmd_vel", &cmd_vel);
+//ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", &cmdVelCallback);
 
 void setup() {
   nh.initNode();

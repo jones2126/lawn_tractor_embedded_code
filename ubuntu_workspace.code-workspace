@@ -13,12 +13,11 @@
 			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_oled_test"
 		},
 		{
-			"name": "ttgo_tractor_v3",
-			"path": "ttgo_tractor_v3"
-		},
-		{
 			"name": "ttgo_radio_control_v3",
 			"path": "ttgo_radio_control_v3"
+		},
+		{
+			"path": "ttgo_tractor_v4"
 		}
 	],
 	"settings": {

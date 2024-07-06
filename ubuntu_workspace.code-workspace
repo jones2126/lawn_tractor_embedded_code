@@ -1,14 +1,6 @@
 {
 	"folders": [
 		{
-			"name": "radio_control",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/radio_control"
-		},
-		{
-			"name": "tractor_control",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/tractor_control"
-		},
-		{
 			"name": "left_speed",
 			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/left_speed"
 		},
@@ -17,108 +9,8 @@
 			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/right_speed"
 		},
 		{
-			"name": "ttgo_esp32_pubsub",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_esp32_pubsub"
-		},
-		{
-			"name": "ttgo_test_servo",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_servo"
-		},
-		{
-			"name": "ttgo_test_gps_status",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_gps_status"
-		},
-		{
-			"name": "ttgo_read_ROS_params",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_read_ROS_params"
-		},
-		{
-			"name": "ttgo_test_pulling_compile_date",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pulling_compile_date"
-		},
-		{
 			"name": "ttgo_oled_test",
 			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_oled_test"
-		},
-		{
-			"name": "ttgo_test_pin",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_pin"
-		},
-		{
-			"name": "ttgo_test_reading_angle_with_filter",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_test_reading_angle_with_filter"
-		},
-		{
-			"name": "ttgo_lora_rx_interrupt",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_lora_rx_interrupt"
-		},
-		{
-			"name": "ttgo_hello_world2",
-			"path": "ttgo_hello_world2"
-		},
-		{
-			"name": "ttgo_LoRa_test_initiator",
-			"path": "ttgo_LoRa_test_initiator"
-		},
-		{
-			"name": "ttgo_LoRa_test_receiver",
-			"path": "ttgo_LoRa_test_receiver"
-		},
-		{
-			"name": "radio_control_v2",
-			"path": "radio_control_v2"
-		},
-		{
-			"name": "ttgo_tractor_v2",
-			"path": "ttgo_tractor_v2"
-		},
-		{
-			"name": "ttgo_LoRa_initiator_2",
-			"path": "ttgo_LoRa_initiator_2"
-		},
-		{
-			"name": "ttgo_LoRa_receiver_2",
-			"path": "ttgo_LoRa_receiver_2"
-		},
-		{
-			"name": "ttgo_LoRa_radio_control_v2",
-			"path": "ttgo_LoRa_radio_control_v2"
-		},
-		{
-			"name": "ttgo_LoRa_tractor_control_v2",
-			"path": "ttgo_LoRa_tractor_control_v2"
-		},
-		{
-			"name": "ttgo_LoRa_test_receiver_rosserial",
-			"path": "ttgo_LoRa_test_receiver_rosserial"
-		},
-		{
-			"name": "ttgo_LoRa_initiator_rosserial",
-			"path": "ttgo_LoRa_initiator_rosserial"
-		},
-		{
-			"name": "ttgo_espnow_radio_v1",
-			"path": "ttgo_espnow_radio_v1"
-		},
-		{
-			"name": "ttgo_espnow_tractor_v1",
-			"path": "ttgo_espnow_tractor_v1"
-		},
-		{
-			"name": "ttgo_espnow_get_mac",
-			"path": "ttgo_espnow_get_mac"
-		},
-		{
-			"name": "ttgo_serial_xfer_test",
-			"path": "ttgo_serial_xfer_test"
-		},
-		{
-			"name": "ttgo_ping_pong",
-			"path": "ttgo_ping_pong"
-		},
-		{
-			"name": "ttgo_test_2way_serial",
-			"path": "ttgo_test_2way_serial"
 		},
 		{
 			"name": "ttgo_tractor_v3",
@@ -127,10 +19,6 @@
 		{
 			"name": "ttgo_radio_control_v3",
 			"path": "ttgo_radio_control_v3"
-		},
-		{
-			"name": "ttgo_uart_loopback",
-			"path": "ttgo_uart_loopback"
 		}
 	],
 	"settings": {

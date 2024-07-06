@@ -1,6 +1,7 @@
-KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.4:1.0", SYMLINK+="ttgo_main"
-KERNEL=="ttyUSB[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.3:1.0", SYMLINK+="gps"
-KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.2:1.0", SYMLINK+="odom_left"
-KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.1.4:1.0", SYMLINK+="odom_right"
-KERNEL=="ttyUSB[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.1.3", SYMLINK+="rosimu"
-
+KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.4:1.0", SYMLINK+="ttgo_main" 
+KERNEL=="ttyUSB[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.3:1.0", SYMLINK+="gps" 
+KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.2:1.0", SYMLINK+="odom_left" 
+KERNEL=="ttyACM[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.1.4:1.0", SYMLINK+="odom_right" 
+#KERNEL=="ttyUSB[0-9]*",SUBSYSTEM=="tty", KERNELS=="8-1.1.3", SYMLINK+="rosimu"
+SUBSYSTEM=="tty", ATTRS{manufacturer}=="FTDI", ATTRS{serial}=="DM03OZST", SYMLINK+="rosimu"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="USB2TTL"

@@ -176,6 +176,7 @@ int dummyPlaceholder = 0;
 
 ///////////////////////  end of declarations //////////////////////////////////
 
+
 void calcQtyValidatedMsgs(){  // calculate the qty of validated messages and save the results as frequency (i.e. Hz)
     if (currentMillis - previousHzCount >= intervalHzCount) {
       validatedMsgsHz = validatedMsgsQty / (intervalHzCount/1000);
@@ -374,7 +375,8 @@ Current steer angle 0.96 to -0.96 (steering_actual_angle)
 
 void getUSB2TTLSerialData(){
   if (USB2TTLSerial.available() > 0) {
-    age_of_cmd_vel = millis() - prev_time_cmdvel;
+    //last_received_serial_data = millis();
+    //age_of_cmd_vel = millis() - prev_time_cmdvel;
     String incomingData = USB2TTLSerial.readStringUntil('\n');
     char incomingDataChar[100];
     incomingData.toCharArray(incomingDataChar, 100);
@@ -383,6 +385,7 @@ void getUSB2TTLSerialData(){
     if (commaIndex != -1) {
       messageType = incomingData.substring(0, commaIndex).toInt();  // change toInt() for messageType
       if (messageType == 1) {
+        //age_of_cmd_vel = millis() - prev_time_cmdvel;
         //char incomingDataChar[100];
         //incomingData.toCharArray(incomingDataChar, 100);
         sscanf(incomingDataChar, "1,%f,%f,%f,%f,%d,%f", 
@@ -398,29 +401,6 @@ void getUSB2TTLSerialData(){
         incomingMsgCount++;  // increment the count of incoming messages
       } 
       else if (messageType == 2) {
-/*
-        int startIndex = commaIndex + 1;
-            
-        for (int i = 0; i < NUM_SPEED_PARAMS; i++) {
-          commaIndex = incomingData.indexOf(',', startIndex);         
-          if (commaIndex != -1) {
-            speed_params_array[i] = incomingData.substring(startIndex, commaIndex).toInt();
-            startIndex = commaIndex + 1;
-          } else {
-            // For the last value, we don't expect another comma so we take the rest of the string.
-            speed_params_array[i] = incomingData.substring(startIndex).toInt();
-            break;
-          }
-        }
-
-        transmissionFullReversePos = speed_params_array[0];
-        transmission075ReversePos  = speed_params_array[1];
-        transmissionNeutralPos     = speed_params_array[2];
-        transmission025ForwardPos  = speed_params_array[3];
-        transmission050ForwardPos  = speed_params_array[4];
-        transmission075ForwardPos  = speed_params_array[5];
-        transmissionFullForwardPos = speed_params_array[6];  
-*/
         sscanf(incomingDataChar, "2,%d,%d,%d,%d,%d,%d,%d", 
           &transmissionFullReversePos, 
           &transmission075ReversePos, 
@@ -431,7 +411,7 @@ void getUSB2TTLSerialData(){
           &transmissionFullForwardPos);
       }
     }
-  }
+  } 
 }
 
 float mapfloat(float x, float in_min, float in_max, float out_min, float out_max){
@@ -565,6 +545,7 @@ void control_transmission(){
 }
 
 void check_cmdvel(){
+  age_of_cmd_vel = millis() - prev_time_cmdvel;
   if (age_of_cmd_vel > cmd_velInterval){
     linear_x = 0;
     angular_z = 0;
@@ -613,7 +594,7 @@ void setup() {
   initializeOLED();
   InitLoRa();
   RadioControlData.estop = 9;
-  TractorData.gps_rtk_status = 9;  
+  TractorData.gps_rtk_status = 9;
 }
 
 void loop() {

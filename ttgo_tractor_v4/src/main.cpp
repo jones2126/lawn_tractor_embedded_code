@@ -155,6 +155,15 @@ int transmissionFullForwardPos = 330;  // 1.8 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
 
+// transmission PID variables
+float speed_kp = 1.0;  // Proportional gain
+float speed_ki = 0.0;  // Integral gain
+float speed_kd = 0.0; // Derivative gain
+float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)
+float speed_error_sum = 0;
+float last_speed_error = 0;
+unsigned long last_speed_control_time = 0;
+
 // variables for parameter settings 
 const int NUM_SPEED_PARAMS = 8;
 int speed_params_array[NUM_SPEED_PARAMS] = {
@@ -418,32 +427,6 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void transmissionPresets(){
-tranmissionLogicflag = 10;  
-if (linear_x >= 1) {
-    transmissionServoValue = transmissionFullForwardPos;
-    tranmissionLogicflag = 11;
-  } else if (linear_x >= 0.75) {
-    tranmissionLogicflag = 12;
-    transmissionServoValue = transmission075ForwardPos;
-    tranmissionLogicflag = 13;
-  } else if (linear_x >= 0.5) {
-    tranmissionLogicflag = 14;
-    transmissionServoValue = transmission050ForwardPos;
-  } else if (linear_x >= 0.05) {
-    transmissionServoValue = transmission025ForwardPos;
-  } else if (linear_x >= -0.05) {
-    transmissionServoValue = transmissionNeutralPos;
-  } else if (linear_x >= -0.75) {
-    transmissionServoValue = transmission075ReversePos;
-  } else if (linear_x >= -1) {
-    transmissionServoValue = transmissionFullReversePos;
-  } else {
-    transmissionServoValue = transmissionNeutralPos;
-    tranmissionLogicflag = 15;
-  }
-}
-
 double computeSteeringPID(float inp){
   // ref: https://www.teachmemicro.com/arduino-pid-control-tutorial/
   currentSteerPidTime = millis();                                          // get current time
@@ -510,34 +493,89 @@ void steerVehicle(){
   }
 }
 
-void control_transmission(){
-  if ((currentMillis - prev_time_tansmission_control) >= transmissionInterval){
+float computeSpeedPID(float current_speed, float setpoint) {
+  unsigned long current_time = millis();
+  float elapsed_time = (current_time - last_speed_control_time) / 1000.0;  // Convert to seconds
+  
+  float error = setpoint - current_speed;
+  speed_error_sum += error * elapsed_time;
+  float error_rate = (error - last_speed_error) / elapsed_time;
+  
+  float output = speed_kp * error + speed_ki * speed_error_sum + speed_kd * error_rate;
+  
+  last_speed_error = error;
+  last_speed_control_time = current_time;
+  
+  return output;
+}
+
+void resetSpeedPID() {
+  speed_error_sum = 0;
+  last_speed_error = 0;
+  last_speed_control_time = millis();
+}
+
+void control_transmission() {
+  static int last_control_mode = -1;  // Initialize with an invalid mode
+  static bool was_moving = false;
+  static int prevTransmissionServoValue = transmissionNeutralPos;
+  float max_servo_change = 3;  // Maximum change in servo value per control interval
+
+  if ((currentMillis - prev_time_tansmission_control) >= transmissionInterval) {
     tranmissionLogicflag = 0;
     actualSpeed = (left_speed + right_speed) / 2.0;
-    if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel){
-      //transmissionServoValue = map(linear_x, -1, 0, transmissionFullReversePos, transmissionNeutralPos);
-      //transmissionServoValue = constrain(transmissionServoValue, transmissionFullReversePos, transmissionNeutralPos);
+    
+    bool reset_pid = false;
+
+    // Check for control mode change
+    if (RadioControlData.control_mode != last_control_mode) {
+      reset_pid = true;
+      last_control_mode = RadioControlData.control_mode;
+    }
+
+    // Check for transition from stopped to moving
+    bool is_moving = (abs(linear_x) > 0.01);  // Threshold for considering the robot as moving
+    if (is_moving && !was_moving) {
+      reset_pid = true;
+    }
+    was_moving = is_moving;
+
+    if (reset_pid) {
+      resetSpeedPID();
+    }
+
+    if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel) {
       transmissionServoValue = transmissionNeutralPos;  // until forward motion is working
       tranmissionLogicflag = 1;
     }
-    else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel)
-    {
-        transmissionPresets();
-        if (transmissionServoValue > transmissionFullForwardPos) {
-          transmissionServoValue = transmissionFullForwardPos;
-        }
-        if (transmissionServoValue < transmissionNeutralPos) {
-          transmissionServoValue = transmissionNeutralPos;
-        }      
-        //tranmissionLogicflag = 2;
+    else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel) {
+      // Use PID controller for speed control
+      speed_setpoint = linear_x;  // Use linear_x as the setpoint
+      float pid_output = computeSpeedPID(actualSpeed, speed_setpoint);
+      
+      // Map PID output to servo value
+      transmissionServoValue = map(pid_output, -1, 1, transmissionNeutralPos, transmissionFullForwardPos);
+      
+      tranmissionLogicflag = 2;
     }
     else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx) {
-      transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos); // - 60=reverse; 73=neutral; 92=first
+      transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);
       tranmissionLogicflag = 3;
     } else {
       transmissionServoValue = transmissionNeutralPos;
       tranmissionLogicflag = 4;
     }
+
+    // Limit the rate of change
+    transmissionServoValue = constrain(transmissionServoValue, 
+                                       prevTransmissionServoValue - max_servo_change, 
+                                       prevTransmissionServoValue + max_servo_change);
+
+    // Constrain the servo value to its valid range
+    transmissionServoValue = constrain(transmissionServoValue, transmissionFullReversePos, transmissionFullForwardPos);
+
+    prevTransmissionServoValue = transmissionServoValue;
+    
     digitalWrite(transmissionPowerPin, LOW);              // turn power on to transmission servo
     ledcWrite(PWM_CHANNEL, transmissionServoValue);       // write PWM value to transmission servo
     prev_time_tansmission_control = millis();

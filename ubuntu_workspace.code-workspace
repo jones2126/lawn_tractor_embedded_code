@@ -18,6 +18,10 @@
 		},
 		{
 			"path": "ttgo_tractor_v4"
+		},
+		{
+			"name": "test_mapping",
+			"path": "../../../Documents/PlatformIO/Projects/test_mapping"
 		}
 	],
 	"settings": {

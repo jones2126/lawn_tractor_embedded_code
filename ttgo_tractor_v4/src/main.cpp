@@ -119,10 +119,12 @@ float filtered_steering_pot_float = 0.0; // current filtered angle
 float prev_angle = 0; // previous filtered angle
 //float safety_margin_pot = 10;                   // reduce this once I complete field testing
 //float left_limit_pot = 3470 - safety_margin_pot; // the actual extreme limit is 3400
-float left_limit_pot = 3158;
+//float left_limit_pot = 3158;  //commented out on 7/8/24
+float left_limit_pot = 3210;    //changed on 7/8/24
 float left_limit_angle = 0.96;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 //float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
-float right_limit_pot = 798;
+//float right_limit_pot = 798;  //commented out on 7/8/24
+float right_limit_pot = 490;    //changed on 7/8/24
 float right_limit_angle = -0.96;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float tolerance = 0.009; // 1% of 0.96
 const int motor_power_limit = 150;
@@ -243,7 +245,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 072623");
+    display.print("Tractor Cntrl 070824");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);

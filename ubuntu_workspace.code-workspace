@@ -27,7 +27,8 @@
 	"settings": {
 		"files.associations": {
 			"sstream": "cpp",
-			"system_error": "cpp"
+			"system_error": "cpp",
+			"cmath": "cpp"
 		}
 	}
 }

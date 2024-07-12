@@ -120,11 +120,12 @@ float prev_angle = 0; // previous filtered angle
 //float safety_margin_pot = 10;                   // reduce this once I complete field testing
 //float left_limit_pot = 3470 - safety_margin_pot; // the actual extreme limit is 3400
 //float left_limit_pot = 3158;  //commented out on 7/8/24
-float left_limit_pot = 3210;    //changed on 7/8/24
+int left_limit_pot = 3210;    //changed on 7/8/24
 float left_limit_angle = 0.96;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 //float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
 //float right_limit_pot = 798;  //commented out on 7/8/24
-float right_limit_pot = 490;    //changed on 7/8/24
+int center_steer_pot = 1780;
+int right_limit_pot = 490;    //changed on 7/8/24
 float right_limit_angle = -0.96;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float tolerance = 0.009; // 1% of 0.96
 const int motor_power_limit = 150;
@@ -446,17 +447,18 @@ double computeSteeringPID(float inp){
 void steerVehicle(){
   if ((currentMillis - prev_time_steer) >= steerInterval){
     // get the current, actual steering angle
-    //steering_actual_pot = analogRead(steer_angle_pin); // read unfiltered angle
-    //steering_actual_pot = 1983; // read unfiltered angle  - returned -21
-    //steering_actual_pot = 1500; // read unfiltered angle   - returned 69
-    //steering_actual_pot = 1700; // read unfiltered angle     - returned 29
-    //steering_actual_pot = 1800; // read unfiltered angle     - returned 9
-    //steering_actual_pot = 1850; // read unfiltered angle     - returned 0
-    //steering_actual_pot = 1865; // read unfiltered angle     - returned -2
-    //steering_actual_pot = 1840; // read unfiltered angle     - returned 0
-    //steering_actual_pot = 1830; // read unfiltered angle     - returned 3
-    //steering_actual_pot = 1835; // read unfiltered angle     - returned 2
-    steering_actual_pot = 1780; // read unfiltered angle     - returned ??
+    steering_actual_pot = analogRead(steer_angle_pin); // read unfiltered angle
+    
+    // results below are changing the steering pot while holding the RC controller to straight
+    //steering_actual_pot = 500; // steer_effort  - returned 150
+    //steering_actual_pot = 825; // steer_effort  - returned 150
+    //steering_actual_pot = 1150; // steer_effort - returned 150
+    //steering_actual_pot = 1475; // steer_effort - returned 63
+    //steering_actual_pot = 1790; // steer_effort - returned 0
+    //steering_actual_pot = 2145; // steer_effort - returned -68
+    //steering_actual_pot = 2500; // steer_effort - returned -135
+    //steering_actual_pot = 2855; // steer_effort - returned -150
+    //steering_actual_pot = 3200; // steer_effort - returned -150
     
     filtered_steering_pot_float = (1 - gain) * prev_angle + gain * steering_actual_pot; // update filtered angle
     filtered_steer_pot_int = round(filtered_steering_pot_float);
@@ -484,8 +486,16 @@ void steerVehicle(){
       steerSetPoint = 0;
     }
   
-  // steering_actual_pot = analogRead(steer_angle_pin);  // now the pot is read in the function that smooths the output
-    steering_actual_angle = mapfloat(filtered_steer_pot_int, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
+    //steering_actual_angle = mapfloat(filtered_steer_pot_int, left_limit_pot, right_limit_pot, left_limit_angle, right_limit_angle);
+
+    if (filtered_steer_pot_int > center_steer_pot) {
+      steering_actual_angle = mapfloat(filtered_steer_pot_int, center_steer_pot, left_limit_pot, 0, left_limit_angle);
+    } else if (filtered_steer_pot_int < center_steer_pot) {
+      steering_actual_angle = mapfloat(filtered_steer_pot_int, right_limit_pot, center_steer_pot, right_limit_angle, 0);
+    } else {
+      steering_actual_angle = 0;  // Exactly at center
+    }
+
     steer_effort_float = computeSteeringPID(steering_actual_angle);
     steer_effort = steer_effort_float;
     /*  Safety clamp:  The max_power_limit could be as high as 255 which

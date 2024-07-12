@@ -245,11 +245,11 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 070824");
+    display.print("Tractor Cntrl 071124");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);
-    display.setCursor(0, row_4);  display.print("Steering:");   display.setCursor(58, row_4); display.print(abs(steer_effort));
+    display.setCursor(0, row_4);  display.print("Steering:");   display.setCursor(58, row_4); display.print(steer_effort_float);
     display.setCursor(0, row_5);  display.print("P:");          display.setCursor(10, row_5); display.print(steer_kp, 2);
     display.setCursor(50, row_5); display.print("I:");          display.setCursor(60, row_5); display.print(steer_ki, 5);
     display.setCursor(0, row_6);  display.print("D:");          display.setCursor(10, row_6); display.print(steer_kd, 2);
@@ -344,7 +344,8 @@ void printInfoMsg() {
                   + "," + String(steering_actual_angle)
                   + "," + String(safety_flag_cmd_vel)
                   + "," + String(age_of_cmd_vel)
-                  + "," + String(qtyRadioRx); 
+                  + "," + String(qtyRadioRx)
+                  + "," + String(steer_effort);
 
 /*
 I want to send these data elements via Serial.println in a comma delimeted format:
@@ -445,12 +446,30 @@ double computeSteeringPID(float inp){
 void steerVehicle(){
   if ((currentMillis - prev_time_steer) >= steerInterval){
     // get the current, actual steering angle
-    steering_actual_pot = analogRead(steer_angle_pin); // read unfiltered angle
+    //steering_actual_pot = analogRead(steer_angle_pin); // read unfiltered angle
+    //steering_actual_pot = 1983; // read unfiltered angle  - returned -21
+    //steering_actual_pot = 1500; // read unfiltered angle   - returned 69
+    //steering_actual_pot = 1700; // read unfiltered angle     - returned 29
+    //steering_actual_pot = 1800; // read unfiltered angle     - returned 9
+    //steering_actual_pot = 1850; // read unfiltered angle     - returned 0
+    //steering_actual_pot = 1865; // read unfiltered angle     - returned -2
+    //steering_actual_pot = 1840; // read unfiltered angle     - returned 0
+    //steering_actual_pot = 1830; // read unfiltered angle     - returned 3
+    //steering_actual_pot = 1835; // read unfiltered angle     - returned 2
+    steering_actual_pot = 1780; // read unfiltered angle     - returned ??
+    
     filtered_steering_pot_float = (1 - gain) * prev_angle + gain * steering_actual_pot; // update filtered angle
     filtered_steer_pot_int = round(filtered_steering_pot_float);
     prev_angle = filtered_steering_pot_float; // store filtered angle for next iteration
 
-    steer_kp = 280;  //232
+    steer_kp = 280;  //232 was used previously; 280 potentially used prior to 7/10/24
+    // The battery voltage is reading 14.2 volts; Using hard coded steering_actual_pot = 1983
+    //  7/10/24 changed to 232   8.42 volts for full right (i.e. -150) -8.52V full left (150)
+    //                            -21 when steering set straight ahead. (1.12 volts) 
+    //  7/11/24 changed to 280   8.47 volts for full right (i.e. -150) -8.57V full left (150)
+    //                            -26 when steering set straight ahead. (1.46 volts)
+    //  7/11/24 changed to 200   8.45 volts for full right (i.e. -150) -8.55V full left (150)
+    //                            -18 when steering set straight ahead. (1.02 volts)      
     steer_ki = 0;
     steer_kd = 0;
     //steer_kp = mapfloat(analogRead(mode_pin), 0, 4095, 0, 600);    
@@ -490,7 +509,7 @@ void steerVehicle(){
       } else {
           steer_effort = 0;
       // analogWrite(PWMPin, steer_effort);       // Turn the motor off
-    }
+      }
     prev_time_steer = millis();
   }
 }
@@ -625,7 +644,7 @@ void check_LoRaRX(){
 void setup() {
   Serial.begin(115200);
   USB2TTLSerial.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);  
-  delay(10000);
+  delay(2000);  // I'm not remembering why I set this here.  On 7/10/24 I changed from 10 secs to 2
   pinMode(steer_angle_pin, INPUT);
   pinMode(PWMPin, OUTPUT);
   pinMode(DIRPin, OUTPUT);

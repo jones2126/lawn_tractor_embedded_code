@@ -56,8 +56,12 @@ char buffer[250];
 ros::NodeHandle nh;
 std_msgs::Float32 left_speed;
 ros::Publisher as5048b_speed_left("/left_speed", &left_speed);
-std_msgs::Float32 left_meters_travelled_msg;
-ros::Publisher as5048b_mtrs_trvld("/left_meters_travelled_msg", &left_meters_travelled_msg);
+
+// // 07/13/24 I expanded the data being published
+// std_msgs::Float32 left_meters_travelled_msg;
+// ros::Publisher as5048b_mtrs_trvld("/left_meters_travelled_msg", &left_meters_travelled_msg);
+ros::Publisher array_data_pub("left_wheel_array_data", &array_data_msg);
+std_msgs::Float32MultiArray array_data_msg;
 
 uint16_t AMS_AS5048B_readReg16() {  //reference: https://github.com/sosandroid/AMS_AS5048B
   byte requestResult;
@@ -88,7 +92,9 @@ void setup() {
   rotational_position = 0;
   nh.initNode();
   nh.advertise(as5048b_speed_left); // used for m/s - can be negative - defined as Float
-  nh.advertise(as5048b_mtrs_trvld);  // used for meters travelled - can be negative - defined as Float
+  //nh.advertise(as5048b_mtrs_trvld);  // used for meters travelled - can be negative - defined as Float
+  nh.advertise(array_data_pub);
+
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
@@ -115,8 +121,18 @@ void loop() {
     //left_speed.data = meters_per_second * -1;  // the negative one is needed because the sensor gears flow in reverse on the left side
     left_speed.data = meters_per_second;  // I'm removing the -1 because the speed is being published as negative
     as5048b_speed_left.publish(&left_speed);
-    left_meters_travelled_msg.data = meters_travelled;
-    as5048b_mtrs_trvld.publish(&left_meters_travelled_msg);    
+
+    // 07/13/24 I expanded the data being published to 3 variables using an array     
+    // left_meters_travelled_msg.data = meters_travelled;
+    // as5048b_mtrs_trvld.publish(&left_meters_travelled_msg);
+    array_data_msg.data_length = 3;  // We're sending 3 values
+    array_data_msg.data = new float[3];
+    array_data_msg.data[0] = meters_travelled;
+    array_data_msg.data[1] = static_cast<float>(position_movement);
+    array_data_msg.data[2] = static_cast<float>(current_position);
+    array_data_pub.publish(&array_data_msg);      // Publish  array_data_pub
+    delete[] array_data_msg.data;                 // Clean up
+    // end of new code on 7/13/24     
 
     last_position = current_position;  
     prev_time_poll_AS5048B = millis();

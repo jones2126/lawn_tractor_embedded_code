@@ -124,7 +124,7 @@ int left_limit_pot = 3210;    //changed on 7/8/24
 float left_limit_angle = 0.96;                  // most neg value for cmd_vel.ang.z from 2D Nav goal issued
 //float right_limit_pot = 758 + safety_margin_pot; // the actual extreme limit is 520
 //float right_limit_pot = 798;  //commented out on 7/8/24
-int center_steer_pot = 1780;
+int center_steer_pot = 1730;
 int right_limit_pot = 490;    //changed on 7/8/24
 float right_limit_angle = -0.96;                  // // most pos value for cmd_vel.ang.z from 2D Nav goal issued
 float tolerance = 0.009; // 1% of 0.96
@@ -159,7 +159,10 @@ int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
 
 // transmission PID variables
-float speed_kp = 1.0;  // Proportional gain
+//float speed_kp = 10.0;  // Proportional gain
+//float speed_kp = 5.0;  // Proportional gain 14:58 went to 325 very fast
+//float speed_kp = 3.0;  // Proportional gain 15:00 weaving all over the place
+float speed_kp = 2.0;  // Proportional gain 15:12
 float speed_ki = 0.0;  // Integral gain
 float speed_kd = 0.0; // Derivative gain
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)

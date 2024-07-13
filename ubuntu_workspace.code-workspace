@@ -28,7 +28,10 @@
 		"files.associations": {
 			"sstream": "cpp",
 			"system_error": "cpp",
-			"cmath": "cpp"
+			"cmath": "cpp",
+			"array": "cpp",
+			"string": "cpp",
+			"string_view": "cpp"
 		}
 	}
 }

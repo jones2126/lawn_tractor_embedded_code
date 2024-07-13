@@ -134,6 +134,17 @@ void loop() {
     delete[] array_data_msg.data;                 // Clean up
     // end of new code on 7/13/24     
 
+    // add a debug message for m/s < 0
+    if (meters_per_second < 0) {  // provide an informational message 
+      String message = "reverse motion detected - position_movement: " + String(position_movement, 2)
+                    + ", current_position: " + String(current_position, 2)              
+                    + ",  last_position: " + String(last_position, 2);
+      message.toCharArray(buffer, message.length() + 1);    
+      nh.logwarn(buffer);
+      prev_time_stamp_info = millis();
+    }
+    // end of debug
+
     last_position = current_position;  
     prev_time_poll_AS5048B = millis();
   }  

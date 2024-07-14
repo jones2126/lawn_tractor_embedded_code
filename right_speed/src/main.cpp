@@ -20,6 +20,7 @@ that shows how to prepare an odom statement, which needs to be added to mine.
 
 #include <ros.h>
 #include "std_msgs/Float32.h"
+#include <std_msgs/Float32MultiArray.h>
 #include <Arduino.h>
 #include <Wire.h>
 
@@ -60,8 +61,8 @@ ros::Publisher as5048b_speed_right("/right_speed", &right_speed);
 // 07/13/24 I expanded the data being published
 // std_msgs::Float32 right_meters_travelled_msg;
 // ros::Publisher as5048b_mtrs_trvld("/right_meters_travelled_msg", &right_meters_travelled_msg);
+std_msgs::Float32MultiArray array_data_msg; 
 ros::Publisher array_data_pub("right_wheel_array_data", &array_data_msg);
-std_msgs::Float32MultiArray array_data_msg;
 
 uint16_t AMS_AS5048B_readReg16() {  //reference: https://github.com/sosandroid/AMS_AS5048B
   byte requestResult;

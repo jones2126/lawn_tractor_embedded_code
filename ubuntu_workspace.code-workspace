@@ -22,6 +22,10 @@
 		{
 			"name": "test_mapping",
 			"path": "../../../Documents/PlatformIO/Projects/test_mapping"
+		},
+		{
+			"name": "teensy_32_test",
+			"path": "../../../Documents/PlatformIO/Projects/teensy_32_test"
 		}
 	],
 	"settings": {

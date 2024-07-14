@@ -20,8 +20,40 @@ swapped if installed on the right side.
 
 #include <ros.h>
 #include "std_msgs/Float32.h"
+#include <std_msgs/Float32MultiArray.h>
 #include <Arduino.h>
 #include <Wire.h>
+
+// added 7/13/24 to resolve an error apparently Teensy related 'undefined reference to `_write''
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/times.h>
+#include <sys/unistd.h>
+
+// Regarding the 'extern C' function below, instead of actually writing data, the 
+// function just returns len, which is the number of bytes it was asked to write. This tells the 
+// calling function that all requested bytes were successfully written, even though no actual writing 
+// occurred. This is a simplification that can be useful when you're just trying to get your code to 
+// compile and don't need actual serial output yet.
+
+
+extern "C" {
+  int _write(int file, char *ptr, int len) {
+    int written = 0;
+    
+    if (file != STDOUT_FILENO && file != STDERR_FILENO) {
+      errno = EBADF;
+      return -1;
+    }
+    
+    // You might want to implement actual writing to Serial here
+    // For now, we'll just pretend we wrote everything
+    written = len;
+    
+    return written;
+  }
+}
+// end of added code on 7/13/24
 
 #define AS5048B_ANGLMSB_REG 0xFE //bits 0..7
 #define AS5048B_RESOLUTION 16384.0 //14 bits
@@ -60,8 +92,8 @@ ros::Publisher as5048b_speed_left("/left_speed", &left_speed);
 // // 07/13/24 I expanded the data being published
 // std_msgs::Float32 left_meters_travelled_msg;
 // ros::Publisher as5048b_mtrs_trvld("/left_meters_travelled_msg", &left_meters_travelled_msg);
-ros::Publisher array_data_pub("left_wheel_array_data", &array_data_msg);
 std_msgs::Float32MultiArray array_data_msg;
+ros::Publisher array_data_pub("left_wheel_array_data", &array_data_msg);
 
 uint16_t AMS_AS5048B_readReg16() {  //reference: https://github.com/sosandroid/AMS_AS5048B
   byte requestResult;
@@ -86,6 +118,7 @@ uint16_t AMS_AS5048B_readReg16() {  //reference: https://github.com/sosandroid/A
 
 
 void setup() {
+  Serial.begin(115200); // Initialize UART
   Wire.begin();
   current_position = AMS_AS5048B_readReg16();
   last_position = current_position;

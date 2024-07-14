@@ -165,7 +165,7 @@ float left_speed, right_speed;
 //float speed_kp = 2.0;  // Proportional gain 15:12 see last rosbag 7/12/24 
 // 7/13/24 Suggestion Kp = 1.5, Ki = 0.1, Kd = 0.5; If the response is too slow, gradually increase Kp
 // If there's steady-state error, gradually increase Ki; If there's overshoot or oscillation, gradually increase Kd
-float speed_kp = 1.5  
+float speed_kp = 1.5;
 float speed_ki = 0.1;
 float speed_kd = 0.5; 
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)

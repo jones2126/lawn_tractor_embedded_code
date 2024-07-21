@@ -18,6 +18,10 @@
 		{
 			"name": "rightSpeed2024",
 			"path": "../../../Documents/PlatformIO/Projects/rightSpeed2024"
+		},
+		{
+			"name": "leftSpeed2024",
+			"path": "../../../Documents/PlatformIO/Projects/leftSpeed2024"
 		}
 	],
 	"settings": {

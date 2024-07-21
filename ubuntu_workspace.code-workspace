@@ -9,10 +9,6 @@
 			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/right_speed"
 		},
 		{
-			"name": "ttgo_oled_test",
-			"path": "../../../../../home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/ttgo_oled_test"
-		},
-		{
 			"name": "ttgo_radio_control_v3",
 			"path": "ttgo_radio_control_v3"
 		},
@@ -20,12 +16,28 @@
 			"path": "ttgo_tractor_v4"
 		},
 		{
-			"name": "test_mapping",
-			"path": "../../../Documents/PlatformIO/Projects/test_mapping"
+			"name": "Nano_Every_test_AS5048B",
+			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_test_AS5048B"
 		},
 		{
-			"name": "teensy_32_test",
-			"path": "../../../Documents/PlatformIO/Projects/teensy_32_test"
+			"name": "Nano_Every_print_test",
+			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_print_test"
+		},
+		{
+			"name": "nano_every_test_right_speed",
+			"path": "../../../Documents/PlatformIO/Projects/nano_every_test_right_speed"
+		},
+		{
+			"name": "Nano_Every_AMS5048B_simple_read",
+			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_AMS5048B_simple_read"
+		},
+		{
+			"name": "Nano_Every_readAndRosserial",
+			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_readAndRosserial"
+		},
+		{
+			"name": "NanoEveryRightSpeed",
+			"path": "../../../Documents/PlatformIO/Projects/NanoEveryRightSpeed"
 		}
 	],
 	"settings": {

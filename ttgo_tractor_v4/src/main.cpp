@@ -164,10 +164,15 @@ float left_speed, right_speed;
 //float speed_kp = 3.0;  // Proportional gain 15:00 weaving all over the place
 //float speed_kp = 2.0;  // Proportional gain 15:12 see last rosbag 7/12/24 
 // 7/13/24 Suggestion Kp = 1.5, Ki = 0.1, Kd = 0.5; If the response is too slow, gradually increase Kp
+// High overshoot might suggest reducing the proportional (P) term.
 // If there's steady-state error, gradually increase Ki; If there's overshoot or oscillation, gradually increase Kd
-float speed_kp = 1.5;
+//float speed_kp = 1.6; // 7/15/24 changing from 1.5 to 1.6 since response seems slow
+float speed_kp = 1.7; // 7/15/24 changing to 1.7 since response seems slow
 float speed_ki = 0.1;
-float speed_kd = 0.5; 
+//float speed_kd = 0.6;  // 7/15/24 increase from 0.5 to 0.6 to reduce oscilation
+//float speed_kd = 0.7;  // 7/15/24 increase to 0.7 to reduce oscilation
+//float speed_kd = 0.6;  // 7/15/24 reduce to 0.6 to weaving was terrible
+float speed_kd = 0.5;  // 7/15/24 reduce to 0.6 to weaving was terrible
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)
 float speed_error_sum = 0;
 float last_speed_error = 0;
@@ -252,7 +257,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 071124");
+    display.print("Tractor Cntrl 071524");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);

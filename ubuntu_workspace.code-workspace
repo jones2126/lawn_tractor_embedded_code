@@ -16,28 +16,8 @@
 			"path": "ttgo_tractor_v4"
 		},
 		{
-			"name": "Nano_Every_test_AS5048B",
-			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_test_AS5048B"
-		},
-		{
-			"name": "Nano_Every_print_test",
-			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_print_test"
-		},
-		{
-			"name": "nano_every_test_right_speed",
-			"path": "../../../Documents/PlatformIO/Projects/nano_every_test_right_speed"
-		},
-		{
-			"name": "Nano_Every_AMS5048B_simple_read",
-			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_AMS5048B_simple_read"
-		},
-		{
-			"name": "Nano_Every_readAndRosserial",
-			"path": "../../../Documents/PlatformIO/Projects/Nano_Every_readAndRosserial"
-		},
-		{
-			"name": "NanoEveryRightSpeed",
-			"path": "../../../Documents/PlatformIO/Projects/NanoEveryRightSpeed"
+			"name": "rightSpeed2024",
+			"path": "../../../Documents/PlatformIO/Projects/rightSpeed2024"
 		}
 	],
 	"settings": {

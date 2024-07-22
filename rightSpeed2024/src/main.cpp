@@ -9,6 +9,7 @@ const unsigned long OUTPUT_INTERVAL = 100; // 10 Hz output
 const unsigned long SAMPLE_INTERVAL = 10;  // 100 Hz sampling
 const int SAMPLE_COUNT = 5; // Number of samples to average
 const int MAX_RETRIES = 3;  // Maximum number of retries for I2C read
+const int SPEED_ARRAY_SIZE = 4;  // Quantity of data elements published to ROS
 const float TICKS_PER_REVOLUTION = 16384.0; // 2^14 ticks per full rotation
 const float WHEEL_CIRCUMFERENCE = 1.59593; // Wheel circumference in meters (20" diameter)
 
@@ -20,13 +21,12 @@ uint32_t positionSum = 0;
 int sampleIndex = 0;
 uint16_t lastPosition = 0;
 int32_t totalTicks = 0;
-float rotationSpeed = 0; // in rotations per second
 float speed = 0; // in meters per second
 
 ros::NodeHandle nh;
 
-std_msgs::Float32MultiArray sensor_data;
-ros::Publisher sensor_pub("wheel_sensor", &sensor_data);
+std_msgs::Float32MultiArray AS5048B_data;
+ros::Publisher AS5048B_pub("wheel_data_left", &AS5048B_data);
 
 uint16_t AMS_AS5048B_readReg16() {
   for (int retry = 0; retry < MAX_RETRIES; retry++) {
@@ -57,10 +57,10 @@ void setup() {
   Wire.setClock(400000); // Set I2C clock to 400kHz
   nh.getHardware()->setBaud(115200);  
   nh.initNode();
-  nh.advertise(sensor_pub);
+  nh.advertise(AS5048B_pub);
 
-  sensor_data.data_length = 4;
-  sensor_data.data = (float*)malloc(sizeof(float) * 3);
+  AS5048B_data.data_length = SPEED_ARRAY_SIZE;
+  AS5048B_data.data = (float*)malloc(sizeof(float) * SPEED_ARRAY_SIZE);
 
   currentPosition = AMS_AS5048B_readReg16();
   lastPosition = currentPosition;
@@ -69,7 +69,7 @@ void setup() {
 void loop() {
   unsigned long currentTime = millis();
 
-  // Sample at high frequency
+  // Read sensor
   if (currentTime - lastSampleTime >= SAMPLE_INTERVAL) {
     uint16_t samplePosition = AMS_AS5048B_readReg16();
     
@@ -101,13 +101,11 @@ void loop() {
     float rotations_per_second = (float)delta / TICKS_PER_REVOLUTION * (1000.0 / OUTPUT_INTERVAL);
     speed = rotations_per_second * WHEEL_CIRCUMFERENCE;
     
-    //sensor_data.data[0] = (float)currentPosition;
-    sensor_data.data[0] = currentPosition;    
-    sensor_data.data[1] = totalRotations;
-    sensor_data.data[2] = rotationSpeed;
-    sensor_data.data[3] = speed;
-    
-    sensor_pub.publish(&sensor_data);
+    AS5048B_data.data[0] = currentPosition;    
+    AS5048B_data.data[1] = totalRotations;
+    AS5048B_data.data[2] = delta;
+    AS5048B_data.data[3] = speed;  // (speed * -1) is needed if used on the left side as the sensor gear is in reverse
+    AS5048B_pub.publish(&AS5048B_data);
     
     lastPosition = currentPosition;
     lastOutputTime = currentTime;

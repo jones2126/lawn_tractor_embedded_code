@@ -26,6 +26,10 @@
 		{
 			"name": "NanoClone328P_old_bootloader",
 			"path": "NanoClone328P_old_bootloader"
+		},
+		{
+			"name": "WeActBlackPill_STM32F411CE",
+			"path": "WeActBlackPill_STM32F411CE"
 		}
 	],
 	"settings": {

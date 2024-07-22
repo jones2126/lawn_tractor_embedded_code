@@ -1,14 +1,6 @@
 {
 	"folders": [
 		{
-			"name": "left_speed",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/left_speed"
-		},
-		{
-			"name": "right_speed",
-			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/right_speed"
-		},
-		{
 			"name": "ttgo_radio_control_v3",
 			"path": "ttgo_radio_control_v3"
 		},

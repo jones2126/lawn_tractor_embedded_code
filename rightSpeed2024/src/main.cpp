@@ -105,7 +105,7 @@ void loop() {
     AS5048B_data.data[0] = currentPosition;    
     AS5048B_data.data[1] = totalRotations;
     AS5048B_data.data[2] = delta;
-    AS5048B_data.data[3] = speed;  // (speed * -1) is needed if used on the left side as the sensor gear is in reverse
+    AS5048B_data.data[3] = speed;  
     AS5048B_pub.publish(&AS5048B_data);
     
     lastPosition = currentPosition;

@@ -22,6 +22,18 @@
 		{
 			"name": "WeActBlackPill_STM32F411CE",
 			"path": "WeActBlackPill_STM32F411CE"
+		},
+		{
+			"name": "ArduinoNanoEveryTestSpeedFilter",
+			"path": "ArduinoNanoEveryTestSpeedFilter"
+		},
+		{
+			"name": "NanoEveryTestStack",
+			"path": "NanoEveryTestStack"
+		},
+		{
+			"name": "NanoEveryAS4058Testing",
+			"path": "NanoEveryAS4058Testing"
 		}
 	],
 	"settings": {

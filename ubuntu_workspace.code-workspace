@@ -34,6 +34,10 @@
 		{
 			"name": "NanoEveryAS4058Testing",
 			"path": "NanoEveryAS4058Testing"
+		},
+		{
+			"name": "NanoEveryAS4058TestingV2",
+			"path": "NanoEveryAS4058TestingV2"
 		}
 	],
 	"settings": {

@@ -1,16 +1,26 @@
 #include <Arduino.h>
 
 const int QUEUE_SIZE = 10;
-const unsigned long REPORT_INTERVAL = 20000; // 20 seconds in milliseconds
+const unsigned long REPORT_INTERVAL = 120000; // 2 minutes in milliseconds
 const unsigned long RESET_INTERVAL = 300000; // 5 minutes in milliseconds
 
 const float MAX_SPEED = 2.0; // Maximum speed in m/s (adjust as needed)
-const float MAX_ACCELERATION = 5.0; // Maximum acceleration in m/s^2 (adjust as needed)
+const float G_FORCE_THRESHOLD = 2.0; // Maximum G-force (positive or negative)
 const unsigned long OUTPUT_INTERVAL = 100; // Time between readings in milliseconds (10 Hz)
 
 const int ENCODER_MAX = 16384; // 2^14, maximum value + 1 for a 14-bit encoder
 const int TICKS_PER_REVOLUTION = 16384; // Assuming this is correct for your encoder
 const float WHEEL_CIRCUMFERENCE = 1.59593; // in meters
+
+// Define a struct to hold anomaly information
+struct Anomaly {
+    unsigned long index;
+    float gForce;
+};
+
+const int MAX_ANOMALIES = 200; // Maximum number of anomalies to store
+Anomaly anomalies[MAX_ANOMALIES];
+int anomalyCount = 0;
 
 unsigned long lastReportTime = 0;
 unsigned long lastResetTime = 0;
@@ -35,6 +45,9 @@ float calculateSpeed(int pos1, int pos2) {
 }
 
 float filterIncomingData(int currentPosition) {
+    static unsigned long recordIndex = 0;
+    recordIndex++;
+
     if (!queueFull) {
         positionQueue[queueIndex] = currentPosition;
         if (queueIndex > 0) {
@@ -51,40 +64,31 @@ float filterIncomingData(int currentPosition) {
     int pos1 = positionQueue[(queueIndex-1+QUEUE_SIZE) % QUEUE_SIZE];
     int pos2 = currentPosition;
     float currentSpeed = calculateSpeed(pos1, pos2);
-    float acceleration = (currentSpeed - lastSpeed) / (OUTPUT_INTERVAL / 1000.0);
+    float gForce = (currentSpeed - lastSpeed) / (OUTPUT_INTERVAL / 1000.0) / 9.81; // Convert to G-force
     
     bool isAnomaly = false;
     
-    if (abs(currentSpeed) > MAX_SPEED) {
-        isAnomaly = true;
-    }
+    // if (abs(currentSpeed) > MAX_SPEED) {
+    //     isAnomaly = true;
+    // }
     
-    if (abs(acceleration) > MAX_ACCELERATION) {
+    if (abs(gForce) > G_FORCE_THRESHOLD) {
         isAnomaly = true;
+        // Serial.print("G-force anomaly detected. Record index: ");
+        // Serial.print(recordIndex);
+        // Serial.print(", G-force: ");
+        // Serial.println(gForce, 2);  // Print G-force with 2 decimal places
+
+        // Store the anomaly if there's space
+        if (anomalyCount < MAX_ANOMALIES) {
+            anomalies[anomalyCount].index = recordIndex;
+            anomalies[anomalyCount].gForce = gForce;
+            anomalyCount++;
+        }
     }
     
     if (isAnomaly) {
         filteredRecords++;
-
-        // Calculate delta for debug output
-        int delta = pos2 - pos1;
-        if (delta > ENCODER_MAX / 2) delta -= ENCODER_MAX;
-        if (delta < -ENCODER_MAX / 2) delta += ENCODER_MAX;
-
-        // Print debug information
-        Serial.print("Debug - pos1: ");
-        Serial.print(pos1);
-        Serial.print(", pos2: ");
-        Serial.print(pos2);
-        Serial.print(", delta: ");
-        Serial.print(delta);
-        Serial.print(", calculated speed: ");
-        Serial.println(currentSpeed);
-
-        Serial.print("Speed anomaly detected. Speed: ");
-        Serial.println(currentSpeed);
-        Serial.print("Acceleration anomaly detected. Acceleration: ");
-        Serial.println(acceleration);
 
         // Use the average of recent valid speeds to estimate the new position
         float avgSpeed = 0;
@@ -99,11 +103,6 @@ float filterIncomingData(int currentPosition) {
         
         positionQueue[queueIndex] = estimatedPosition;
         speedQueue[(queueIndex-1+QUEUE_SIZE) % QUEUE_SIZE] = avgSpeed;
-        
-        Serial.print("Anomaly corrected. Original: ");
-        Serial.print(currentPosition);
-        Serial.print(", Estimated: ");
-        Serial.println(estimatedPosition);
         
         currentPosition = estimatedPosition;
         currentSpeed = avgSpeed;
@@ -164,8 +163,21 @@ void loop() {
         Serial.print(totalRecords);
         Serial.print(", Filtered records: ");
         Serial.println(filteredRecords);
-        delay(1);
         
+        // Print out stored anomalies
+        Serial.println("Anomalies detected:");
+        for (int i = 0; i < anomalyCount; i++) {
+            Serial.print("Index: ");
+            Serial.print(anomalies[i].index);
+            Serial.print(", G-force: ");
+            Serial.println(anomalies[i].gForce, 2);
+        }
+        Serial.println("End of anomalies");
+        
+        // Reset anomaly count
+        anomalyCount = 0;
+        
+        delay(1);
         lastReportTime = currentTime;
     }
     

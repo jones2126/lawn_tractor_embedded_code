@@ -42,6 +42,10 @@
 		{
 			"name": "NanoEveryAS4058B_FilterViaAvg",
 			"path": "NanoEveryAS4058B_FilterViaAvg"
+		},
+		{
+			"name": "NanoEveryTestSerial",
+			"path": "NanoEveryTestSerial"
 		}
 	],
 	"settings": {

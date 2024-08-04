@@ -86,7 +86,7 @@ void loop() {
     lastSampleTime = currentTime;
     
     int16_t delta = (int16_t)currentPosition - (int16_t)lastPosition;
-    //delta = delta * -1;  // (delta * -1) is needed if used on the left side as the sensor gear is in reverse
+    delta = delta * -1;  // (delta * -1) is needed if used on the left side as the sensor gear is in reverse
     if (delta > 8192) delta -= 16384;
     if (delta < -8192) delta += 16384;
     totalTicks += delta;

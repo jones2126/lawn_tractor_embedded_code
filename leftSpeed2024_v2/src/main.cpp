@@ -27,7 +27,7 @@ float lastSpeed = 0;
 
 ros::NodeHandle nh;
 std_msgs::Float32MultiArray AS5048B_data;
-ros::Publisher AS5048B_pub("wheel_data_right", &AS5048B_data);
+ros::Publisher AS5048B_pub("wheel_data_left", &AS5048B_data);
 
 float calculateGForce(float currentSpeed, float lastSpeed, float deltaTime) {
   float acceleration = (currentSpeed - lastSpeed) / (deltaTime / 1000.0); // m/s^2

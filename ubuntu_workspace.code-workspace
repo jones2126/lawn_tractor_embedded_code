@@ -54,6 +54,10 @@
 		{
 			"name": "leftSpeed2024_v2",
 			"path": "leftSpeed2024_v2"
+		},
+		{
+			"name": "ttgo_tractor_v5",
+			"path": "ttgo_tractor_v5"
 		}
 	],
 	"settings": {

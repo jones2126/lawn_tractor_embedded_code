@@ -168,7 +168,7 @@ float left_speed, right_speed;
 // If there's steady-state error, gradually increase Ki; If there's overshoot or oscillation, gradually increase Kd
 //float speed_kp = 1.6; // 7/15/24 changing from 1.5 to 1.6 since response seems slow
 //float speed_kp = 1.7; // 7/15/24 changing to 1.7 since response seems slow
-float speed_kp = 1.7; // 8/5/24 Increasing to 1.8 since tractor is coming to a stop 
+float speed_kp = 1.8; // 8/5/24 Increasing to 1.8 from 1.7 since tractor is coming to a stop 
 float speed_ki = 0.1;
 //float speed_kd = 0.6;  // 7/15/24 increase from 0.5 to 0.6 to reduce oscilation
 //float speed_kd = 0.7;  // 7/15/24 increase to 0.7 to reduce oscilation

@@ -7,7 +7,7 @@
 
 const unsigned long SAMPLE_INTERVAL = 100;  // 100 = 10Hz sampling
 const int MAX_RETRIES = 3;  // Maximum number of retries for I2C read
-const int SPEED_ARRAY_SIZE = 4;  // Quantity of data elements published to ROS
+const int SPEED_ARRAY_SIZE = 5;  // Quantity of data elements published to ROS
 const float TICKS_PER_REVOLUTION = 16384.0; // 2^14 ticks per full rotation
 const float WHEEL_CIRCUMFERENCE = 1.59593; // Wheel circumference in meters (20" diameter)
 const int VALID_SPEED_BUFFER_SIZE = 3;
@@ -62,7 +62,7 @@ uint16_t AMS_AS5048B_readReg16() {
     uint16_t lowByte = Wire.read();
     return (((uint16_t)highByte << 6) | (lowByte & 0x3F));
   }
-  nh.logwarn("Failed to read sensor after multiple attempts");
+  nh.logwarn("I2C sensor failed - reset Teensy");
   return 0; // Return 0 if all attempts failed
 }
 
@@ -85,21 +85,21 @@ void loop() {
     unsigned long deltaTime = currentTime - lastSampleTime;
     lastSampleTime = currentTime;
     
-    int16_t delta = (int16_t)currentPosition - (int16_t)lastPosition;
-    delta = delta * -1;  // (delta * -1) is needed if used on the left side as the sensor gear is in reverse
-    if (delta > 8192) delta -= 16384;
-    if (delta < -8192) delta += 16384;
-    totalTicks += delta;
+    int16_t delta_ticks = (int16_t)currentPosition - (int16_t)lastPosition;   
+    delta_ticks = delta_ticks * -1;  // (delta_ticks * -1) is needed if used on the left side as the sensor gear is in reverse
+    if (delta_ticks > 8192) delta_ticks -= 16384;
+    if (delta_ticks < -8192) delta_ticks += 16384;
+    totalTicks += delta_ticks;
     float totalRotations = totalTicks / TICKS_PER_REVOLUTION;
       
     // Calculate speed in meters per second
-    float rotations_per_second = (float)delta / TICKS_PER_REVOLUTION * (1000.0 / SAMPLE_INTERVAL);
+    float rotations_per_second = (float)delta_ticks / TICKS_PER_REVOLUTION * (1000.0 / SAMPLE_INTERVAL);
     speed = rotations_per_second * WHEEL_CIRCUMFERENCE;
     
-    // Calculate G-force
-    float gForce = calculateGForce(speed, lastSpeed, deltaTime);
+    float delta_meters = (float)delta_ticks / TICKS_PER_REVOLUTION * WHEEL_CIRCUMFERENCE; // Calculate delta in meters
+    float gForce = calculateGForce(speed, lastSpeed, deltaTime);  // Calculate G-force
     
-    // A valid speed is when G-force is less than 2
+    // A valid speed is when G-force is less than 2, likely even lower
     if (abs(gForce) < 2.0) {
       validSpeedBuffer[validSpeedIndex] = speed;
       validSpeedIndex = (validSpeedIndex + 1) % VALID_SPEED_BUFFER_SIZE;  //  a circular buffer for storing valid speed values
@@ -107,14 +107,15 @@ void loop() {
     } else {
       speed = averageValidSpeeds();
       char buffer[100];
-      snprintf(buffer, sizeof(buffer), "G-force > 2: Pos=%u, Delta=%d, G-Force=%.2f", currentPosition, delta, gForce);
+      snprintf(buffer, sizeof(buffer), "G-force > 2: Pos=%u, Delta=%d, G-Force=%.2f", currentPosition, delta_ticks, gForce);
       nh.logwarn(buffer);
     }
     
     AS5048B_data.data[0] = currentPosition;    
     AS5048B_data.data[1] = totalRotations;
-    AS5048B_data.data[2] = delta;
-    AS5048B_data.data[3] = speed;  
+    AS5048B_data.data[2] = delta_ticks;
+    AS5048B_data.data[3] = speed;
+    AS5048B_data.data[4] = delta_meters;   
     AS5048B_pub.publish(&AS5048B_data);
     
     lastPosition = currentPosition;

@@ -164,7 +164,25 @@ const float DEADBAND = 0.05;  // 5% deadband
 
 
 // transmission PID variables
-float speed_kp = 5.0;
+//float speed_kp = 5.0;  // returned 325 in 3 seconds
+//float speed_kp = 2.0; // returned 325 in 4 seconds
+//float speed_kp = 0.5; // returned 305 in 3 seconds
+//float speed_kp = 0.75; // returned 305 in 3 seconds
+//float speed_kp = 1.0; // returned 305 in 3 seconds
+//float speed_kp = 1.5; // returned 325 in 4 seconds
+//float speed_kp = 1.25; // returned 305 in 3 seconds
+//float speed_kp = 1.37; // returned 325 in 3 seconds
+//float speed_kp = 1.31; // returned 305 in 3 seconds
+//float speed_kp = 1.34; // returned 325 in 4 seconds
+//float speed_kp = 1.325; // returned 305 in 3 seconds
+//float speed_kp = 1.33; // returned 305 in 3 seconds
+//float speed_kp = 1.34; // returned 325 in 4 seconds
+//float speed_kp = 1.335; // returned 325 in 5 seconds
+//float speed_kp = 1.3325; // returned 305 in 3 seconds
+//float speed_kp = 1.334; // returned 325 in 4 seconds
+//float speed_kp = 1.333; // returned 305 in 3 seconds
+float speed_kp = 1.3335; // returned 325 in 3 seconds
+//float speed_kp = 1.33325; // returned 305 in 3 seconds
 float speed_ki = 0.0;
 float speed_kd = 0.0; 
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)
@@ -251,7 +269,7 @@ void displayOLED(){
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor(0, row_1);
-    display.print("Tractor Cntrl 080624");
+    display.print("Tractor Cntrl 080924");
     // display.setCursor(0,row_2);  display.print("RC Volt2:"); display.setCursor(58,row_2); display.print(voltage_val);
     display.setCursor(0, row_2);  display.print("RSSI:");       display.setCursor(58, row_2); display.println(LoRa.packetRssi());
     display.setCursor(0, row_3);  display.print("Throttle:");   display.setCursor(58, row_3); display.print(transmissionServoValue);

@@ -27,7 +27,7 @@ float lastSpeed = 0;
 
 ros::NodeHandle nh;
 std_msgs::Float32MultiArray AS5048B_data;
-ros::Publisher AS5048B_pub("wheel_data_left", &AS5048B_data);
+ros::Publisher AS5048B_pub("wheel_data_right", &AS5048B_data);
 
 float calculateGForce(float currentSpeed, float lastSpeed, float deltaTime) {
   float acceleration = (currentSpeed - lastSpeed) / (deltaTime / 1000.0); // m/s^2
@@ -86,7 +86,7 @@ void loop() {
     lastSampleTime = currentTime;
     
     int16_t delta_ticks = (int16_t)currentPosition - (int16_t)lastPosition;   
-    delta_ticks = delta_ticks * -1;  // (delta_ticks * -1) is needed if used on the left side as the sensor gear is in reverse
+    // delta_ticks = delta_ticks * -1;  // (delta_ticks * -1) is needed if used on the left side as the sensor gear is in reverse
     if (delta_ticks > 8192) delta_ticks -= 16384;
     if (delta_ticks < -8192) delta_ticks += 16384;
     totalTicks += delta_ticks;

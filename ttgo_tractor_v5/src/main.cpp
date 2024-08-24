@@ -157,7 +157,8 @@ int transmission075ForwardPos  = 315;  // 1.0 m/s
 int transmissionFullForwardPos = 330;  // 1.8 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
-const int MIN_FORWARD_SERVO = 305;  // Minimum servo value for forward motion
+//const int MIN_FORWARD_SERVO = 305;  // Minimum servo value for forward motion
+const int MIN_FORWARD_SERVO = 300;  // 8/13/24 305 was not able to slow the tractor when going downhill
 const float DEADBAND = 0.05;  // 5% deadband
 
 
@@ -181,10 +182,13 @@ const float DEADBAND = 0.05;  // 5% deadband
 //float speed_kp = 1.3325; // returned 305 in 3 seconds
 //float speed_kp = 1.334; // returned 325 in 4 seconds
 //float speed_kp = 1.333; // returned 305 in 3 seconds
-float speed_kp = 1.3335; // returned 325 in 3 seconds
 //float speed_kp = 1.33325; // returned 305 in 3 seconds
-float speed_ki = 0.0;
-float speed_kd = 0.0; 
+//float speed_kp = 1.3335; // returned 325 in 3 seconds - field tested on 8/9/24 - did not oscilate or get to .75 m/s
+//float speed_kp = 2.0;  // test on 8/10 - crazy fast
+//float speed_kp = 1.5; float speed_ki = 0.411; float speed_kd = 1.369; // test on 8/10 speed was 1.1 m/s
+float speed_kp = 0.7;
+float speed_ki = 0.156;
+float speed_kd = 0.7898; 
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)
 float speed_error_sum = 0;
 float last_speed_error = 0;

@@ -15,6 +15,10 @@
 		{
 			"name": "ttgo_tractor_v5",
 			"path": "ttgo_tractor_v5"
+		},
+		{
+			"name": "BNO085_ROS_IMU_Publisher",
+			"path": "BNO085_ROS_IMU_Publisher"
 		}
 	],
 	"settings": {

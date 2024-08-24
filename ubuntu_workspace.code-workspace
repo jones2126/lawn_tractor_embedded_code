@@ -16,10 +16,6 @@
 			"path": "/home/tractor/github_projects/lawn_tractor_embedded_code/lawn_tractor_embedded_code/leftSpeed2024"
 		},
 		{
-			"name": "WeActBlackPill_STM32F411CE",
-			"path": "WeActBlackPill_STM32F411CE"
-		},
-		{
 			"name": "rightSpeed2024_v2",
 			"path": "rightSpeed2024_v2"
 		},

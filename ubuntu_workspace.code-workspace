@@ -54,10 +54,6 @@
 		{
 			"name": "ttgo_tractor_v5",
 			"path": "ttgo_tractor_v5"
-		},
-		{
-			"name": "BNO085_simple_yaw",
-			"path": "BNO085_simple_yaw"
 		}
 	],
 	"settings": {

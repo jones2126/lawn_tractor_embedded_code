@@ -1,6 +1,6 @@
 # Lawn Tractor Embedded Code
 
-This repository contains various embedded programs designed to run on different microcontrollers for controlling and monitoring a lawn tractor system. Each program is tailored to interact with specific hardware components and sensors, enabling functionalities such as motion control, sensor data acquisition, and communication with a ROS (Robot Operating System) environment.
+This repository contains various embedded programs designed to run on different microcontrollers for low level control and monitoring a automated lawn tractor. Each program is tailored to interact with specific hardware components and sensors, enabling functionalities such as motion control, sensor data acquisition, and communication with a ROS (Robot Operating System) environment.  Another repository exists, [ros1_lawn_tractor_ws](https://github.com/jones2126/ros1_lawn_tractor_ws) that contains the base ROS1 components that run on the host (an HP Laptop).  Each of the programs mentioned below run on a separate microcontroller and feed its output into a USB hub that is then processed by the host when in 'auto' mode.  When in 'manual' mode the radio control unit provides guidance to the tractor control unit to steer and control the speed of the tractor.
 
 ## Table of Contents
 

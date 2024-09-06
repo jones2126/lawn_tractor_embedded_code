@@ -19,6 +19,10 @@
 		{
 			"name": "BNO085_ROS_IMU_Publisher",
 			"path": "BNO085_ROS_IMU_Publisher"
+		},
+		{
+			"name": "ttgo_test_script",
+			"path": "ttgo_test_script"
 		}
 	],
 	"settings": {

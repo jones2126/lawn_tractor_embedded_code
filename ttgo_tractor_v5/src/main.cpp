@@ -158,7 +158,9 @@ int transmissionFullForwardPos = 330;  // 1.8 m/s
 int transmissionServoValue = transmissionNeutralPos; // neutral position
 float left_speed, right_speed;
 //const int MIN_FORWARD_SERVO = 305;  // Minimum servo value for forward motion
-const int MIN_FORWARD_SERVO = 300;  // 8/13/24 305 was not able to slow the tractor when going downhill
+//const int MIN_FORWARD_SERVO = 300;  // 8/13/24 305 was not able to slow the tractor when going downhill
+//const int MIN_FORWARD_SERVO = 295;  // 8/28/24 300 was not able to stop the tractor at the end of its mission
+const int MIN_FORWARD_SERVO = 300; // 9/6/24 could not stabilize the PID so going back to 300; Added code to handle STOP
 const float DEADBAND = 0.05;  // 5% deadband
 
 
@@ -186,9 +188,52 @@ const float DEADBAND = 0.05;  // 5% deadband
 //float speed_kp = 1.3335; // returned 325 in 3 seconds - field tested on 8/9/24 - did not oscilate or get to .75 m/s
 //float speed_kp = 2.0;  // test on 8/10 - crazy fast
 //float speed_kp = 1.5; float speed_ki = 0.411; float speed_kd = 1.369; // test on 8/10 speed was 1.1 m/s
-float speed_kp = 0.7;
+// kp 0.87, ki 0.1933, kd 0.9788 at 11:45 on 9/3/24
+// based on history above trying kp 1.4 ki 0.0 kd 0.0 @ ~ 11:50
+// kp 1.6 ~ 11:57
+// kp 1.8 ~ 12:01 - thas actually seemed slower; Could a lower kp be better?
+// kp 1.2 ~ 12:07 - slow similar to 1.4, going up this time
+// kp 2.5 ~ 12:11 - did not jump the speed at all; Going lower
+// kp 0.9 ~ 12:17 - very slow
+// kp 4.0 ~ 12:19 - oscilated pretty well over the target - lets see what adding a little ki does
+// kp 4.0 ki 0.2 ~ 12:30
+// kp 3.0 (to reduce overshoot) ki 0.1 kd 0.05 at 13:19
+// float speed_kp = 3.0;
+// float speed_ki = 0.1;
+// float speed_kd = 0.05; 
+// float speed_kp = 2.9;  // 9/3/24 at ~13:40
+// float speed_ki = 0.1;
+// float speed_kd = 0.05;
+// float speed_kp = 2.5;  // 9/4/24 12:22
+// float speed_ki = 0.15;
+// float speed_kd = 0.1;
+// float speed_kp = 2.0;  // 9/4/24 13:03
+// float speed_ki = 0.1;
+// float speed_kd = 0.2;
+// float speed_kp = 1.6;  // 9/4/24 13:20
+// float speed_ki = 0.12;
+// float speed_kd = 0.25;
+
+// float speed_kp = 1.8;  // 9/4/24 13:45
+// float speed_ki = 0.08;
+// // float speed_kd = 0.18;
+// float speed_kp = 1.7;  // 9/4/24 13:55
+// float speed_ki = 0.05;
+// float speed_kd = 0.16;
+// float speed_kp = 1.4;  // 9/4/24 14:05
+// float speed_ki = 0.06;
+// float speed_kd = 0.1;
+// float speed_kp = 1.2;  // 9/4/24 14:19 - second best
+// float speed_ki = 0.07;
+// float speed_kd = 0.2;
+// float speed_kp = 1.8;  // 9/4/24 13:30 and then again at 15:48 - best so far
+// float speed_ki = 0.05;
+// float speed_kd = 0.15;
+float speed_kp = 0.7;  // 9/6/24 using with min trans to 300 and kp .7 ki 0.156 and kd 0.7898 
 float speed_ki = 0.156;
-float speed_kd = 0.7898; 
+float speed_kd = 0.7898;
+
+
 float speed_setpoint = 0.5;  // Default setpoint (0.5 m/s)
 float speed_error_sum = 0;
 float last_speed_error = 0;
@@ -605,27 +650,30 @@ void control_transmission() {
       last_speed_control_time = millis();
     }
 
-    if (RadioControlData.control_mode == 2 && linear_x < 0 && safety_flag_LoRaRx && safety_flag_cmd_vel) {
-      transmissionServoValue = transmissionNeutralPos;  // until forward motion is working
-      tranmissionLogicflag = 1;
-    }
-    else if (RadioControlData.control_mode == 2 && linear_x >= 0 && safety_flag_LoRaRx && safety_flag_cmd_vel) {
-      speed_setpoint = linear_x;  // Use linear_x as the setpoint
-      float pid_output = computeSpeedPID(actualSpeed, speed_setpoint);
-      
-      // Map PID output to servo value map(value, fromLow, fromHigh, toLow, toHigh)
-      // So, map(value, 0, 1, 0, 330-305)
-      transmissionServoValue = MIN_FORWARD_SERVO + map(pid_output, 0, 1, 0, transmissionFullForwardPos - MIN_FORWARD_SERVO);
-      
-      tranmissionLogicflag = 2;
-    }
-    else if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx) {
-      transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);
-      tranmissionLogicflag = 3;
-    } else {
-      transmissionServoValue = transmissionNeutralPos;
-      tranmissionLogicflag = 4;
-    }
+    if (RadioControlData.control_mode == 1 && safety_flag_LoRaRx) {
+        transmissionServoValue = map(RadioControlData.throttle_val, 0, 4095, transmissionFullReversePos, transmissionFullForwardPos);  // copied
+        tranmissionLogicflag = 1;
+    } else if (RadioControlData.control_mode == 2 && safety_flag_LoRaRx && safety_flag_cmd_vel) {
+      if (linear_x > 0) { // Forward movement
+        speed_setpoint = linear_x;
+        float pid_output = computeSpeedPID(actualSpeed, speed_setpoint);
+        // Map PID output to servo value map(value, fromLow, fromHigh, toLow, toHigh); So, map(value, 0, 1, 0, 330-305)      
+        transmissionServoValue = MIN_FORWARD_SERVO + map(pid_output * 100, 0, 100, 0, transmissionFullForwardPos - MIN_FORWARD_SERVO);
+        tranmissionLogicflag = 2;
+      } else if (linear_x == 0 && angular_z == 0) { // End of mission - stop
+        transmissionServoValue = transmissionNeutralPos;    
+        tranmissionLogicflag = 3;
+      } else if (linear_x < 0) { // Reverse movement in auto mode - error state until programmed
+        transmissionServoValue = transmissionNeutralPos;    
+        tranmissionLogicflag = 4;
+      } else { // Other case in auto mode
+        transmissionServoValue = transmissionNeutralPos;   
+        tranmissionLogicflag = 5;
+      } // Close the else-if block      
+    } else { // Saftey conditions not met or not in mode 1 or 2
+      transmissionServoValue = transmissionNeutralPos;   
+      tranmissionLogicflag = 6;
+    }    
 
     // Limit the rate of change
     transmissionServoValue = constrain(transmissionServoValue, 
